@@ -1,0 +1,18 @@
+# Unreal generated content
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.VC.db
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.xcodeproj
+*.xcworkspace
+
+# Local tooling
+.idea/
+.vscode/
+tmp/

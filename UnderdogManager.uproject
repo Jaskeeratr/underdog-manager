@@ -1,0 +1,16 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "Games",
+  "Description": "C++-first basketball club management simulation.",
+  "Modules": [
+    { "Name": "UnderdogCore", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "UnderdogSimulation", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "UnderdogGame", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "UnderdogTests", "Type": "Developer", "LoadingPhase": "PostEngineInit" }
+  ],
+  "Plugins": [
+    { "Name": "CommonUI", "Enabled": true },
+    { "Name": "EnhancedInput", "Enabled": true }
+  ]
+}
