@@ -7,10 +7,11 @@
     { "Name": "UnderdogCore", "Type": "Runtime", "LoadingPhase": "Default" },
     { "Name": "UnderdogSimulation", "Type": "Runtime", "LoadingPhase": "Default" },
     { "Name": "UnderdogGame", "Type": "Runtime", "LoadingPhase": "Default" },
-    { "Name": "UnderdogTests", "Type": "Developer", "LoadingPhase": "PostEngineInit" }
+    { "Name": "UnderdogTests", "Type": "DeveloperTool", "LoadingPhase": "PostEngineInit" }
   ],
   "Plugins": [
     { "Name": "CommonUI", "Enabled": true },
-    { "Name": "EnhancedInput", "Enabled": true }
+    { "Name": "EnhancedInput", "Enabled": true },
+    { "Name": "AndroidFileServer", "Enabled": false }
   ]
 }

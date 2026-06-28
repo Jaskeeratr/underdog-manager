@@ -76,7 +76,7 @@ struct UNDERDOGCORE_API FPlayerProfile
 };
 
 USTRUCT(BlueprintType)
-struct UNDERDOGCORE_API FPlayerState
+struct UNDERDOGCORE_API FAthleteState
 {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
@@ -118,7 +118,7 @@ struct UNDERDOGCORE_API FTeamState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString City;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Nickname;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayerProfile> Players;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayerState> PlayerStates;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FAthleteState> PlayerStates;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FRotationPlan Rotation;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamTactics Tactics;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 OperatingBalanceMinorUnits = 0;
@@ -138,6 +138,8 @@ struct UNDERDOGCORE_API FScheduledGame
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid AwayTeamId;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Round = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bComplete = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 HomeScore = -1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 AwayScore = -1;
 };
 
 USTRUCT(BlueprintType)
@@ -185,8 +187,12 @@ struct UNDERDOGCORE_API FPlayerBoxScore
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Points = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Rebounds = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 OffensiveRebounds = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Assists = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Steals = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Blocks = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Turnovers = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Fouls = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 FieldGoalsMade = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 FieldGoalsAttempted = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ThreePointersMade = 0;

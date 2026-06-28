@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "DeterministicRandom.h"
 #include "LeagueGenerator.h"
+#include "LeagueService.h"
 #include "MatchSimulator.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -71,6 +72,81 @@ bool FMatchDeterminismTest::RunTest(const FString& Parameters)
     FString Error;
     TestTrue(*FString::Printf(TEXT("Result validates: %s"), *Error), First.Validate(Error));
     TestTrue(TEXT("Basketball match cannot end tied"), First.HomeScore != First.AwayScore);
+    int32 RecordedHomePoints = 0;
+    for (const FPlayerBoxScore& Box : First.HomeBoxScore) { RecordedHomePoints += Box.Points; }
+    TestEqual(TEXT("Home player points reconcile"), RecordedHomePoints, First.HomeScore);
+    TestEqual(TEXT("Final event retains home score"), First.Events.Last().HomeScore, First.HomeScore);
+    TestEqual(TEXT("Final event retains away score"), First.Events.Last().AwayScore, First.AwayScore);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRoundAdvanceAndStandingsTest,
+    "Underdog.Simulation.RoundAdvanceAndStandings",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRoundAdvanceAndStandingsTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+    TArray<FMatchResult> Results;
+    FString Error;
+    TestTrue(*FString::Printf(TEXT("Round advances: %s"), *Error),
+        FLeagueService::AdvanceCurrentRound(League, Results, Error));
+    TestEqual(TEXT("One round resolves six games"), Results.Num(), 6);
+    TestEqual(TEXT("Current round increments"), League.CurrentRound, 1);
+
+    int32 Completed = 0;
+    int32 TotalWins = 0;
+    int32 TotalLosses = 0;
+    for (const FScheduledGame& Game : League.Schedule) { Completed += Game.bComplete ? 1 : 0; }
+    for (const FTeamState& Team : League.Teams) { TotalWins += Team.Wins; TotalLosses += Team.Losses; }
+    TestEqual(TEXT("Six games marked complete"), Completed, 6);
+    for (const FScheduledGame& Game : League.Schedule)
+    {
+        if (Game.bComplete)
+        {
+            TestTrue(TEXT("Completed game stores its score"), Game.HomeScore >= 0 && Game.AwayScore >= 0);
+            TestTrue(TEXT("Completed game is not tied"), Game.HomeScore != Game.AwayScore);
+        }
+    }
+    TestEqual(TEXT("Six wins recorded"), TotalWins, 6);
+    TestEqual(TEXT("Six losses recorded"), TotalLosses, 6);
+    FString LeagueError;
+    TestTrue(TEXT("Mutated league remains valid"), FLeagueGenerator::ValidateLeague(League, LeagueError));
+
+    const TArray<FTeamState> Standings = FLeagueService::GetStandings(League);
+    TestEqual(TEXT("Standings contain all teams"), Standings.Num(), 12);
+    for (int32 Index = 1; Index < Standings.Num(); ++Index)
+    {
+        TestTrue(TEXT("Standings are ordered by wins"), Standings[Index - 1].Wins >= Standings[Index].Wins);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFullRegularSeasonTest,
+    "Underdog.Simulation.FullRegularSeason",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFullRegularSeasonTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(77ULL);
+    FString Error;
+    for (int32 Round = 0; Round < 22; ++Round)
+    {
+        TArray<FMatchResult> Results;
+        if (!FLeagueService::AdvanceCurrentRound(League, Results, Error))
+        {
+            AddError(FString::Printf(TEXT("Round %d failed: %s"), Round, *Error));
+            return false;
+        }
+    }
+    TestEqual(TEXT("Regular season reaches round 22"), League.CurrentRound, 22);
+    for (const FTeamState& Team : League.Teams)
+    {
+        TestEqual(TEXT("Every team completes 22 games"), Team.Wins + Team.Losses, 22);
+    }
+    TArray<FMatchResult> ExtraResults;
+    TestFalse(TEXT("A 23rd regular-season round is rejected"),
+        FLeagueService::AdvanceCurrentRound(League, ExtraResults, Error));
     return true;
 }
 

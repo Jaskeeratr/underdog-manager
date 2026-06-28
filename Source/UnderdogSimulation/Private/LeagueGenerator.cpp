@@ -65,7 +65,7 @@ FLeagueState FLeagueGenerator::Generate(uint64 Seed)
             Player.Contract.YearsRemaining = Random.Range(1, 3);
             Team.Players.Add(Player);
 
-            FPlayerState State;
+            FAthleteState State;
             State.PlayerId = Player.PlayerId;
             State.Morale = Random.Range(45, 65);
             Team.PlayerStates.Add(State);
@@ -121,7 +121,7 @@ TArray<FScheduledGame> FLeagueGenerator::GenerateDoubleRoundRobin(const TArray<F
             Result.Add(Return);
         }
 
-        const int32 Last = Order.Pop(false);
+        const int32 Last = Order.Pop(EAllowShrinking::No);
         Order.Insert(Last, 1);
     }
     Result.Sort([](const FScheduledGame& A, const FScheduledGame& B) { return A.Round < B.Round; });
@@ -138,6 +138,9 @@ bool FLeagueGenerator::ValidateLeague(const FLeagueState& League, FString& OutEr
     TSet<FGuid> Teams;
     TMap<FGuid, int32> GamesPerTeam;
     TSet<FString> Pairings;
+    int32 CompletedGames = 0;
+    int32 TotalWins = 0;
+    int32 TotalLosses = 0;
     for (const FTeamState& Team : League.Teams)
     {
         if (!Team.TeamId.IsValid() || Teams.Contains(Team.TeamId) || Team.Players.Num() != 15)
@@ -146,6 +149,8 @@ bool FLeagueGenerator::ValidateLeague(const FLeagueState& League, FString& OutEr
             return false;
         }
         Teams.Add(Team.TeamId);
+        TotalWins += Team.Wins;
+        TotalLosses += Team.Losses;
         FString RotationError;
         if (!Team.Rotation.IsValid(RotationError)) { OutError = RotationError; return false; }
     }
@@ -159,6 +164,20 @@ bool FLeagueGenerator::ValidateLeague(const FLeagueState& League, FString& OutEr
         GamesPerTeam.FindOrAdd(Game.HomeTeamId)++;
         GamesPerTeam.FindOrAdd(Game.AwayTeamId)++;
         Pairings.Add(Game.HomeTeamId.ToString() + TEXT("|") + Game.AwayTeamId.ToString());
+        if (Game.bComplete)
+        {
+            if (Game.HomeScore < 0 || Game.AwayScore < 0 || Game.HomeScore == Game.AwayScore)
+            {
+                OutError = TEXT("A completed game must store a valid non-tied score.");
+                return false;
+            }
+            CompletedGames++;
+        }
+        else if (Game.HomeScore != -1 || Game.AwayScore != -1)
+        {
+            OutError = TEXT("An incomplete game cannot contain a final score.");
+            return false;
+        }
     }
     for (const FGuid& TeamId : Teams)
     {
@@ -171,6 +190,11 @@ bool FLeagueGenerator::ValidateLeague(const FLeagueState& League, FString& OutEr
     if (Pairings.Num() != 132)
     {
         OutError = TEXT("Every ordered home/away pairing must occur exactly once.");
+        return false;
+    }
+    if (TotalWins != CompletedGames || TotalLosses != CompletedGames)
+    {
+        OutError = TEXT("Team records do not reconcile with completed games.");
         return false;
     }
     return true;

@@ -17,5 +17,6 @@ public:
 
 private:
     static const FPlayerProfile& SelectShooter(const FTeamState& Team, class FDeterministicRandom& Random);
+    static const FPlayerProfile& SelectSupportingPlayer(const FTeamState& Team, const FGuid& Excluded, class FDeterministicRandom& Random);
     static FPlayerBoxScore& FindBox(TArray<FPlayerBoxScore>& BoxScore, const FGuid& PlayerId);
 };

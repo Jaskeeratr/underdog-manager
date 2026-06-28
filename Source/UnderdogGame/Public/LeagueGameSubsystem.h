@@ -20,6 +20,8 @@ public:
     UFUNCTION(BlueprintCallable, Category="Underdog|League") bool StartNewLeague(int64 Seed, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|League") FLeagueState GetLeague() const { return League; }
     UFUNCTION(BlueprintCallable, Category="Underdog|League") bool SimulateGame(const FGuid& GameId, FMatchResult& OutResult, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|League") bool AdvanceCurrentRound(TArray<FMatchResult>& OutResults, FString& OutError);
+    UFUNCTION(BlueprintPure, Category="Underdog|League") TArray<FTeamState> GetStandings() const;
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|League") bool HasLeague() const { return League.Teams.Num() > 0; }

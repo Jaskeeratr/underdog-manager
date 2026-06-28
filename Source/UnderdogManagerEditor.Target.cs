@@ -5,7 +5,7 @@ public class UnderdogManagerEditorTarget : TargetRules
     public UnderdogManagerEditorTarget(TargetInfo Target) : base(Target)
     {
         Type = TargetType.Editor;
-        DefaultBuildSettings = BuildSettingsVersion.V5;
+        DefaultBuildSettings = BuildSettingsVersion.Latest;
         IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
         ExtraModuleNames.AddRange(new[] { "UnderdogGame", "UnderdogTests" });
     }

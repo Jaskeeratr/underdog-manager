@@ -6,6 +6,7 @@ Saved/
 .vs/
 *.VC.db
 *.sln
+*.slnx
 *.suo
 *.opensdf
 *.sdf

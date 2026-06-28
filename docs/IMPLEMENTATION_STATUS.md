@@ -9,28 +9,30 @@
 - League and roster generation
 - Double round-robin schedule generation and validation
 - First possession-based match simulator
-- Overtime and basic tactical modifiers
+- Overtime, basic tactical modifiers, assists, steals, blocks, fouls, free throws, and rebounds
 - Box-score consistency validation
-- League subsystem and standings application
+- Atomic round advancement, stored results, head-to-head standings ordering, and league-state application
+- Deterministic fatigue, fitness, morale, recent-form, injury, and recovery consequences
 - Async save/load shell with schema rejection
 - Placeholder 3D highlight actor
 - Automation tests
 
-## Environment blockers
+## Verified environment
 
-- Unreal Engine 5.8 is not installed on the current machine; only UE 5.1 was detected.
-- A compatible Visual Studio C++ toolchain was not detected.
-- No marketplace arena, character, uniform, or basketball animation assets are installed in this workspace.
-- The existing `.git` directory was empty rather than an initialized repository.
+- Unreal Engine 5.8.0
+- MSVC 19.44 x64 toolchain
+- Windows SDK 10.0.26100.0
+- Unreal Header Tool and editor target build pass
+- Five `Underdog` automation tests pass headlessly with exit code 0
+
+The remaining environment dependency is licensed marketplace arena, character, uniform, and basketball animation content for the production highlight gate.
 
 ## Not yet implemented
 
-The current simulator is an architectural foundation, not the complete MVP. Assists, free throws, fouls, explicit rebounds, substitutions, fatigue, injuries, scouting, training, finances, trades, playoffs, production UI, rolling backup saves, save migration, and production highlights remain milestone work.
+The current simulator is an architectural foundation, not the complete MVP. Minute-accurate substitutions, foul-outs, timeouts, scouting, training, finances, trades, playoffs, production UI, rolling backup saves, save migration, and production highlights remain milestone work.
 
-## First actions after toolchain installation
+## Next milestone actions
 
-1. Generate project files and compile with UE 5.8.
-2. Resolve any Unreal Header Tool or API changes surfaced by the real compiler.
-3. Run all automation tests and expand the soak target from 100 to 1,000 seasons.
-4. Create the placeholder court map and wire three event fixtures into the highlight actor.
-5. Select marketplace assets and document licenses in `docs/ASSET_LICENSES.md`.
+1. Expand the soak target from 100 to 1,000 seasons.
+2. Create the placeholder court map and wire three event fixtures into the highlight actor.
+3. Select marketplace assets and document licenses in `docs/ASSET_LICENSES.md`.

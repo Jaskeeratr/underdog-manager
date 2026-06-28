@@ -12,7 +12,10 @@ This repository currently contains the Gate 1 foundation:
 - generated 12-team/180-player fictional league
 - validated 22-game double round-robin schedule
 - deterministic possession-based match simulator with overtime
+- assists, steals, blocks, fouls, free throws, and explicit rebound events
 - score and box-score reconciliation
+- atomic six-game round advancement and ordered standings
+- deterministic post-game fatigue, morale, form, injury, and recovery effects
 - game-instance league orchestration
 - asynchronous save snapshots and schema validation
 - code-created ten-player highlight placeholder with skip support
@@ -27,7 +30,7 @@ The project deliberately does not include marketplace content. Assets must be se
 - Windows 10 or 11 SDK
 - Git LFS before adding `.uasset`, `.umap`, animation, audio, or image content
 
-The machine used to create the initial source scaffold only had Unreal Engine 5.1 installed, so this code has not yet been compiled with its required engine version.
+The project is compiled and verified with Unreal Engine 5.8.0, MSVC 19.44, and Windows SDK 10.0.26100.0.
 
 ## Build
 
@@ -39,6 +42,8 @@ The machine used to create the initial source scaffold only had Unreal Engine 5.
 ## Tests
 
 In the Unreal Editor, open **Tools > Test Automation**, search for `Underdog`, and run the suite.
+
+Current verification: all five `Underdog` automation tests pass under UE 5.8 with `-NullRHI`.
 
 For command-line verification:
 

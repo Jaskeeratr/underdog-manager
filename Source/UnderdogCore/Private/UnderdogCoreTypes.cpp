@@ -62,7 +62,9 @@ bool FMatchResult::Validate(FString& OutError) const
             const int32 Calculated = (Box.FieldGoalsMade - Box.ThreePointersMade) * 2
                 + Box.ThreePointersMade * 3 + Box.FreeThrowsMade;
             if (Calculated != Box.Points || Box.FieldGoalsMade > Box.FieldGoalsAttempted
-                || Box.ThreePointersMade > Box.FieldGoalsMade || Box.FreeThrowsMade > Box.FreeThrowsAttempted)
+                || Box.ThreePointersMade > Box.FieldGoalsMade || Box.FreeThrowsMade > Box.FreeThrowsAttempted
+                || Box.OffensiveRebounds > Box.Rebounds || Box.Points < 0 || Box.Rebounds < 0
+                || Box.Assists < 0 || Box.Steals < 0 || Box.Blocks < 0 || Box.Turnovers < 0 || Box.Fouls < 0)
             {
                 OutError = TEXT("A player box score is internally inconsistent.");
                 return false;
@@ -76,5 +78,25 @@ bool FMatchResult::Validate(FString& OutError) const
         }
         return true;
     };
-    return ValidateSide(HomeBoxScore, HomeScore) && ValidateSide(AwayBoxScore, AwayScore);
+    if (!ValidateSide(HomeBoxScore, HomeScore) || !ValidateSide(AwayBoxScore, AwayScore)) { return false; }
+    if (Events.Num() < 2 || Events[0].Type != EMatchEventType::GameStarted
+        || Events.Last().Type != EMatchEventType::GameEnded)
+    {
+        OutError = TEXT("Match event log is incomplete.");
+        return false;
+    }
+    for (int32 Index = 0; Index < Events.Num(); ++Index)
+    {
+        if (Events[Index].Sequence != Index || Events[Index].HomeScore < 0 || Events[Index].AwayScore < 0)
+        {
+            OutError = TEXT("Match event sequence or running score is invalid.");
+            return false;
+        }
+    }
+    if (Events.Last().HomeScore != HomeScore || Events.Last().AwayScore != AwayScore)
+    {
+        OutError = TEXT("Final event score does not match the result.");
+        return false;
+    }
+    return true;
 }
