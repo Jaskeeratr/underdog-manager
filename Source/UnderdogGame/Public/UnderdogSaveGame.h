@@ -11,7 +11,7 @@ class UNDERDOGGAME_API UUnderdogSaveGame : public USaveGame
     GENERATED_BODY()
 
 public:
-    static constexpr int32 CurrentSchemaVersion = 1;
+    static constexpr int32 CurrentSchemaVersion = 2;
     UPROPERTY(SaveGame) int32 SchemaVersion = CurrentSchemaVersion;
     UPROPERTY(SaveGame) FDateTime SavedAtUtc;
     UPROPERTY(SaveGame) FLeagueState League;

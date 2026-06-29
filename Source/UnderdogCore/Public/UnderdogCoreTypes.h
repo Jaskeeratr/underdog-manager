@@ -44,6 +44,12 @@ enum class ESeasonPhase : uint8 { RegularSeason, Playoffs, Complete };
 UENUM(BlueprintType)
 enum class ETradeStatus : uint8 { Pending, Accepted, Rejected, Expired };
 
+UENUM(BlueprintType)
+enum class EAwardType : uint8 { MVP, DPOY, ROY, MIP, ChampionMVP };
+
+UENUM(BlueprintType)
+enum class EOffseasonStep : uint8 { Awards, Aging, ContractExpiry, Draft, Resigning, Complete };
+
 USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FPlayerRatings
 {
@@ -239,6 +245,64 @@ struct UNDERDOGCORE_API FPlayoffBracket
 };
 
 USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FSeasonStats
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 GamesPlayed = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalPoints = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalRebounds = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalAssists = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalSteals = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalBlocks = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalTurnovers = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 OverallAtSeasonStart = 0;
+    float PPG() const { return GamesPlayed > 0 ? static_cast<float>(TotalPoints) / GamesPlayed : 0.0f; }
+    float RPG() const { return GamesPlayed > 0 ? static_cast<float>(TotalRebounds) / GamesPlayed : 0.0f; }
+    float APG() const { return GamesPlayed > 0 ? static_cast<float>(TotalAssists) / GamesPlayed : 0.0f; }
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FSeasonAward
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EAwardType Type = EAwardType::MVP;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Season = 1;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FCommentaryLine
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Text;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Period = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ClockSeconds = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Importance = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FDraftProspect
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FPlayerProfile Profile;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 DraftOrder = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bDrafted = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid DraftedByTeamId;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FOffseasonState
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EOffseasonStep CurrentStep = EOffseasonStep::Awards;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FDraftProspect> DraftClass;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FGuid> ExpiredContractPlayerIds;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CurrentDraftPick = 0;
+};
+
+USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FLeagueState
 {
     GENERATED_BODY()
@@ -254,6 +318,10 @@ struct UNDERDOGCORE_API FLeagueState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TradeDeadlineRound = 16;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FTradeOffer> TradeHistory;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FPlayoffBracket Playoffs;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SeasonNumber = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FSeasonStats> SeasonStats;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FSeasonAward> Awards;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FOffseasonState Offseason;
 };
 
 USTRUCT(BlueprintType)

@@ -34,6 +34,13 @@ public:
     UFUNCTION(BlueprintCallable, Category="Underdog|Playoffs") bool AdvancePlayoffs(TArray<FMatchResult>& OutResults, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|Playoffs") FPlayoffBracket GetPlayoffBracket() const { return League.Playoffs; }
     UFUNCTION(BlueprintPure, Category="Underdog|League") ESeasonPhase GetSeasonPhase() const { return League.Phase; }
+    UFUNCTION(BlueprintPure, Category="Underdog|League") int32 GetSeasonNumber() const { return League.SeasonNumber; }
+    UFUNCTION(BlueprintCallable, Category="Underdog|Offseason") bool StartOffseason(FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Offseason") bool AdvanceOffseason(FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Offseason") bool DraftPlayer(const FGuid& TeamId, int32 ProspectIndex, FString& OutError);
+    UFUNCTION(BlueprintPure, Category="Underdog|Offseason") FOffseasonState GetOffseasonState() const { return League.Offseason; }
+    UFUNCTION(BlueprintPure, Category="Underdog|Awards") TArray<FSeasonAward> GetAwards() const { return League.Awards; }
+    UFUNCTION(BlueprintPure, Category="Underdog|Stats") TArray<FSeasonStats> GetSeasonStats() const { return League.SeasonStats; }
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|League") bool HasLeague() const { return League.Teams.Num() > 0; }

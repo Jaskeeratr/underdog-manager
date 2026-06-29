@@ -12,7 +12,9 @@ class UWidgetSwitcher;
 struct FLeagueState;
 struct FTeamState;
 struct FMatchResult;
+struct FMatchSnapshot;
 struct FPlayoffBracket;
+struct FSeasonAward;
 enum class ETrainingFocus : uint8;
 enum class ETrainingIntensity : uint8;
 
@@ -46,6 +48,8 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> TradeList;
     UPROPERTY() TObjectPtr<UVerticalBox> PlayoffList;
     UPROPERTY() TObjectPtr<UVerticalBox> ResultsList;
+    UPROPERTY() TObjectPtr<UVerticalBox> AwardsList;
+    UPROPERTY() TObjectPtr<UVerticalBox> OffseasonList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
@@ -67,6 +71,8 @@ private:
     void RefreshTradeScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshPlayoffScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshResultsScreen(const TArray<FMatchResult>& Results, const FLeagueState& League, const FTeamState& Club);
+    void RefreshAwardsScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshOffseasonScreen(const FLeagueState& League, const FTeamState& Club);
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
 
@@ -79,6 +85,9 @@ private:
     UFUNCTION() void ShowTraining();
     UFUNCTION() void ShowTrades();
     UFUNCTION() void ShowPlayoffs();
+    UFUNCTION() void ShowAwards();
+    UFUNCTION() void ShowOffseason();
+    UFUNCTION() void HandleAdvanceOffseason();
     UFUNCTION() void HandleAutoRotation();
     UFUNCTION() void HandleAssignScout();
     UFUNCTION() void HandleProposeTrade();
@@ -90,4 +99,5 @@ private:
     UFUNCTION() void SetTrainingHigh();
 
     TArray<FMatchResult> LastRoundResults;
+    TArray<FMatchSnapshot> LastRoundSnapshots;
 };

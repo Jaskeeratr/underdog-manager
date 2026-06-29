@@ -2,6 +2,7 @@
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
+#include "OffseasonService.h"
 #include "TradeService.h"
 #include "UnderdogSaveGame.h"
 #include "Kismet/GameplayStatics.h"
@@ -70,6 +71,31 @@ bool ULeagueGameSubsystem::ProposeTrade(const FGuid& ProposingTeamId,
 bool ULeagueGameSubsystem::AdvancePlayoffs(TArray<FMatchResult>& OutResults, FString& OutError)
 {
     if (!FLeagueService::AdvancePlayoffs(League, OutResults, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::StartOffseason(FString& OutError)
+{
+    if (!FOffseasonService::StartOffseason(League, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::AdvanceOffseason(FString& OutError)
+{
+    if (!FOffseasonService::AdvanceOffseason(League, OutError)) { return false; }
+    if (League.Phase == ESeasonPhase::RegularSeason)
+    {
+        FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+    }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::DraftPlayer(const FGuid& TeamId, int32 ProspectIndex, FString& OutError)
+{
+    if (!FOffseasonService::DraftPlayer(League, TeamId, ProspectIndex, OutError)) { return false; }
     OnLeagueChanged.Broadcast();
     return true;
 }

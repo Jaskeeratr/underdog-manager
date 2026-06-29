@@ -1,6 +1,8 @@
 #include "ManagementDashboardWidget.h"
 
+#include "CommentaryService.h"
 #include "LeagueGameSubsystem.h"
+#include "LeagueService.h"
 #include "UnderdogCoreTypes.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -117,7 +119,8 @@ void UManagementDashboardWidget::BuildLayout()
         ->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 34.0f));
 
     const FString Labels[] = { TEXT("OVERVIEW"), TEXT("ROSTER"), TEXT("SCHEDULE"),
-        TEXT("STANDINGS"), TEXT("SCOUTING"), TEXT("TRAINING"), TEXT("TRADES"), TEXT("PLAYOFFS") };
+        TEXT("STANDINGS"), TEXT("SCOUTING"), TEXT("TRAINING"), TEXT("TRADES"), TEXT("PLAYOFFS"),
+        TEXT("AWARDS"), TEXT("OFFSEASON") };
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Labels); ++Index)
     {
         UButton* NavigationButton = MakeNavigationButton(Labels[Index], Index == 0);
@@ -131,6 +134,8 @@ void UManagementDashboardWidget::BuildLayout()
         case 5: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowTraining); break;
         case 6: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowTrades); break;
         case 7: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowPlayoffs); break;
+        case 8: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowAwards); break;
+        case 9: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowOffseason); break;
         default: break;
         }
         NavigationBox->AddChildToVerticalBox(NavigationButton)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
@@ -233,6 +238,10 @@ void UManagementDashboardWidget::BuildLayout()
         TEXT("Top eight teams compete in best-of-seven series to determine the champion."), PlayoffList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("RESULTS"), TEXT("Round Results"),
         TEXT("Box scores and outcomes from the most recent round of games."), ResultsList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("RECOGNITION"), TEXT("Season Awards"),
+        TEXT("MVP, Defensive Player of the Year, Rookie of the Year, and Most Improved."), AwardsList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("FRONT OFFICE"), TEXT("Offseason"),
+        TEXT("Step through aging, contracts, the draft, and re-signing to begin a new season."), OffseasonList));
 }
 
 UVerticalBox* UManagementDashboardWidget::MakeDetailScreen(const FString& Eyebrow, const FString& Title,
@@ -279,7 +288,9 @@ void UManagementDashboardWidget::RefreshDashboard()
     }
     else if (League.Phase == ESeasonPhase::Complete)
     {
-        SeasonText->SetText(FText::FromString(TEXT("SEASON COMPLETE")));
+        const bool bInOffseason = League.Offseason.CurrentStep != EOffseasonStep::Awards
+            || League.Offseason.DraftClass.Num() > 0;
+        SeasonText->SetText(FText::FromString(bInOffseason ? TEXT("OFFSEASON") : TEXT("SEASON COMPLETE")));
     }
     else
     {
@@ -347,11 +358,23 @@ void UManagementDashboardWidget::RefreshDashboard()
         NextOpponentText->SetText(FText::FromString(Champion
             ? FString::Printf(TEXT("CHAMPION: %s %s"), *Champion->City.ToUpper(), *Champion->Nickname.ToUpper())
             : TEXT("SEASON COMPLETE")));
-        MatchupDetailsText->SetText(FText::FromString(
-            League.Playoffs.ChampionTeamId == Club.TeamId
-            ? TEXT("Congratulations! Your rebuild is complete.")
-            : TEXT("The season is over. Better luck next year.")));
-        SimulateButton->SetIsEnabled(false);
+        const bool bOffseasonStarted = League.Offseason.CurrentStep != EOffseasonStep::Awards
+            || League.Offseason.DraftClass.Num() > 0;
+        if (bOffseasonStarted)
+        {
+            MatchupDetailsText->SetText(FText::FromString(TEXT("Offseason in progress. Use the Offseason tab.")));
+            SimulateButtonText->SetText(FText::FromString(TEXT("OFFSEASON  >")));
+            SimulateButton->SetIsEnabled(false);
+        }
+        else
+        {
+            MatchupDetailsText->SetText(FText::FromString(
+                League.Playoffs.ChampionTeamId == Club.TeamId
+                ? TEXT("Congratulations! Your rebuild is complete.")
+                : TEXT("The season is over. Better luck next year.")));
+            SimulateButtonText->SetText(FText::FromString(TEXT("BEGIN OFFSEASON  >")));
+            SimulateButton->SetIsEnabled(true);
+        }
     }
     else
     {
@@ -407,6 +430,8 @@ void UManagementDashboardWidget::RefreshDashboard()
     RefreshTradeScreen(League, Club);
     RefreshPlayoffScreen(League, Club);
     RefreshResultsScreen(LastRoundResults, League, Club);
+    RefreshAwardsScreen(League, Club);
+    RefreshOffseasonScreen(League, Club);
 }
 
 void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League, const FTeamState& Club)
@@ -441,6 +466,19 @@ void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League,
         Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("FIT %d"), State->Fitness), 10,
             State->Fitness >= 70 ? DashboardStyle::Success : DashboardStyle::Accent, true))
             ->SetSize(DashboardStyle::Size(0.35f));
+        const FSeasonStats* Stats = League.SeasonStats.FindByPredicate(
+            [&PlayerId](const FSeasonStats& S) { return S.PlayerId == PlayerId; });
+        if (Stats && Stats->GamesPlayed > 0)
+        {
+            Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("%.1f/%.1f/%.1f"),
+                Stats->PPG(), Stats->RPG(), Stats->APG()), 9, DashboardStyle::Secondary))
+                ->SetSize(DashboardStyle::Size(0.55f));
+        }
+        else
+        {
+            Row->AddChildToHorizontalBox(MakeText(TEXT("—/—/—"), 9, DashboardStyle::Secondary))
+                ->SetSize(DashboardStyle::Size(0.55f));
+        }
         UTextBlock* Minutes = MakeText(FString::Printf(TEXT("%d MIN"), Club.Rotation.TargetMinutes.FindRef(PlayerId)),
             10, DashboardStyle::Secondary, true);
         Minutes->SetJustification(ETextJustify::Right);
@@ -650,6 +688,8 @@ void UManagementDashboardWidget::ShowScouting() { SetScreen(4); }
 void UManagementDashboardWidget::ShowTraining() { SetScreen(5); }
 void UManagementDashboardWidget::ShowTrades() { SetScreen(6); }
 void UManagementDashboardWidget::ShowPlayoffs() { SetScreen(7); }
+void UManagementDashboardWidget::ShowAwards() { SetScreen(9); }
+void UManagementDashboardWidget::ShowOffseason() { SetScreen(10); }
 
 void UManagementDashboardWidget::HandleAutoRotation()
 {
@@ -924,6 +964,24 @@ void UManagementDashboardWidget::RefreshResultsScreen(const TArray<FMatchResult>
                 Row->AddChildToHorizontalBox(FGText)->SetSize(DashboardStyle::Size(0.45f));
                 GameContent->AddChildToVerticalBox(Row)->SetPadding(FMargin(0.0f, 2.0f));
             }
+
+            const FMatchSnapshot* Snap = LastRoundSnapshots.FindByPredicate(
+                [&Result](const FMatchSnapshot& S) { return S.GameId == Result.GameId; });
+            if (Snap)
+            {
+                TArray<FCommentaryLine> Highlights = FCommentaryService::GenerateHighlights(Result, *Snap, 5);
+                if (Highlights.Num() > 0)
+                {
+                    GameContent->AddChildToVerticalBox(MakeText(TEXT("HIGHLIGHTS"), 8,
+                        DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 4.0f));
+                    for (const FCommentaryLine& Line : Highlights)
+                    {
+                        UTextBlock* CommentaryText = MakeText(Line.Text, 9, DashboardStyle::Secondary);
+                        CommentaryText->SetAutoWrapText(true);
+                        GameContent->AddChildToVerticalBox(CommentaryText)->SetPadding(FMargin(0.0f, 2.0f));
+                    }
+                }
+            }
         }
         ResultsList->AddChildToVerticalBox(GameCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
     }
@@ -976,8 +1034,26 @@ void UManagementDashboardWidget::HandleSimulateRound()
 {
     ULeagueGameSubsystem* LeagueSubsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
     if (!LeagueSubsystem) { return; }
-    TArray<FMatchResult> Results;
     FString Error;
+
+    if (LeagueSubsystem->GetSeasonPhase() == ESeasonPhase::Complete)
+    {
+        if (LeagueSubsystem->StartOffseason(Error))
+        {
+            RefreshDashboard();
+            StatusText->SetText(FText::FromString(TEXT("Offseason has begun. Step through each phase.")));
+            StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
+            SetScreen(10);
+        }
+        else
+        {
+            StatusText->SetText(FText::FromString(Error));
+            StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        }
+        return;
+    }
+
+    TArray<FMatchResult> Results;
     bool bSuccess = false;
     if (LeagueSubsystem->GetSeasonPhase() == ESeasonPhase::Playoffs)
     {
@@ -991,6 +1067,22 @@ void UManagementDashboardWidget::HandleSimulateRound()
     if (bSuccess)
     {
         LastRoundResults = Results;
+        LastRoundSnapshots.Empty();
+        const FLeagueState PostLeague = LeagueSubsystem->GetLeague();
+        for (const FMatchResult& Result : Results)
+        {
+            const FScheduledGame* Game = PostLeague.Schedule.FindByPredicate(
+                [&Result](const FScheduledGame& G) { return G.GameId == Result.GameId; });
+            if (Game)
+            {
+                FMatchSnapshot Snap;
+                FString SnapError;
+                if (FLeagueService::BuildSnapshot(PostLeague, *Game, Snap, SnapError))
+                {
+                    LastRoundSnapshots.Add(MoveTemp(Snap));
+                }
+            }
+        }
         RefreshDashboard();
         const FString PhaseLabel = LeagueSubsystem->GetSeasonPhase() == ESeasonPhase::Playoffs
             ? TEXT("Playoff") : TEXT("Round");
@@ -998,6 +1090,206 @@ void UManagementDashboardWidget::HandleSimulateRound()
             TEXT("%s complete  •  %d games resolved"), *PhaseLabel, Results.Num())));
         StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
         SetScreen(8);
+    }
+    else
+    {
+        StatusText->SetText(FText::FromString(Error));
+        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+    }
+}
+
+void UManagementDashboardWidget::RefreshAwardsScreen(const FLeagueState& League, const FTeamState& Club)
+{
+    AwardsList->ClearChildren();
+    if (League.Awards.Num() == 0)
+    {
+        AwardsList->AddChildToVerticalBox(MakeText(
+            TEXT("Awards are announced at the end of the season."), 12, DashboardStyle::Secondary));
+        return;
+    }
+
+    AwardsList->AddChildToVerticalBox(MakeText(
+        FString::Printf(TEXT("SEASON %d AWARDS"), League.SeasonNumber), 14, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 14.0f));
+
+    auto AwardLabel = [](EAwardType Type) -> FString
+    {
+        switch (Type)
+        {
+        case EAwardType::MVP: return TEXT("MOST VALUABLE PLAYER");
+        case EAwardType::DPOY: return TEXT("DEFENSIVE PLAYER OF THE YEAR");
+        case EAwardType::ROY: return TEXT("ROOKIE OF THE YEAR");
+        case EAwardType::MIP: return TEXT("MOST IMPROVED PLAYER");
+        case EAwardType::ChampionMVP: return TEXT("CHAMPION MVP");
+        default: return TEXT("AWARD");
+        }
+    };
+
+    for (const FSeasonAward& Award : League.Awards)
+    {
+        const FPlayerProfile* Player = nullptr;
+        const FTeamState* AwardTeam = nullptr;
+        for (const FTeamState& Team : League.Teams)
+        {
+            Player = Team.Players.FindByPredicate(
+                [&Award](const FPlayerProfile& P) { return P.PlayerId == Award.PlayerId; });
+            if (Player) { AwardTeam = &Team; break; }
+        }
+
+        UBorder* Card = MakeCard(Award.TeamId == Club.TeamId
+            ? DashboardStyle::AccentSoft : DashboardStyle::CardRaised);
+        Card->SetPadding(FMargin(14.0f, 10.0f));
+        UVerticalBox* Content = WidgetTree->ConstructWidget<UVerticalBox>();
+        Card->SetContent(Content);
+        Content->AddChildToVerticalBox(MakeText(AwardLabel(Award.Type), 9, DashboardStyle::Accent, true));
+        Content->AddChildToVerticalBox(MakeText(
+            Player ? Player->DisplayName : TEXT("Unknown"), 16, DashboardStyle::Primary, true))
+            ->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 0.0f));
+
+        FString Details;
+        if (AwardTeam) { Details = AwardTeam->City + TEXT(" ") + AwardTeam->Nickname; }
+        const FSeasonStats* Stats = League.SeasonStats.FindByPredicate(
+            [&Award](const FSeasonStats& S) { return S.PlayerId == Award.PlayerId; });
+        if (Stats && Stats->GamesPlayed > 0)
+        {
+            Details += FString::Printf(TEXT("  •  %.1f PPG  %.1f RPG  %.1f APG"),
+                Stats->PPG(), Stats->RPG(), Stats->APG());
+        }
+        Content->AddChildToVerticalBox(MakeText(Details, 10, DashboardStyle::Secondary))
+            ->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 0.0f));
+
+        AwardsList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    }
+}
+
+void UManagementDashboardWidget::RefreshOffseasonScreen(const FLeagueState& League, const FTeamState& Club)
+{
+    OffseasonList->ClearChildren();
+    if (League.Phase != ESeasonPhase::Complete && League.Phase != ESeasonPhase::RegularSeason)
+    {
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            TEXT("The offseason begins after the playoffs."), 12, DashboardStyle::Secondary));
+        return;
+    }
+
+    if (League.Phase == ESeasonPhase::RegularSeason && League.Offseason.CurrentStep == EOffseasonStep::Awards)
+    {
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            FString::Printf(TEXT("SEASON %d IN PROGRESS"), League.SeasonNumber),
+            14, DashboardStyle::Accent, true));
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            TEXT("The offseason will begin once the playoffs conclude."),
+            11, DashboardStyle::Secondary))->SetPadding(FMargin(0.0f, 6.0f, 0.0f, 0.0f));
+        return;
+    }
+
+    auto StepLabel = [](EOffseasonStep Step) -> FString
+    {
+        switch (Step)
+        {
+        case EOffseasonStep::Awards: return TEXT("AWARDS");
+        case EOffseasonStep::Aging: return TEXT("AGING & DEVELOPMENT");
+        case EOffseasonStep::ContractExpiry: return TEXT("CONTRACT EXPIRY");
+        case EOffseasonStep::Draft: return TEXT("ROOKIE DRAFT");
+        case EOffseasonStep::Resigning: return TEXT("RE-SIGNING");
+        case EOffseasonStep::Complete: return TEXT("OFFSEASON COMPLETE");
+        default: return TEXT("UNKNOWN");
+        }
+    };
+
+    const FOffseasonState& Offseason = League.Offseason;
+    OffseasonList->AddChildToVerticalBox(MakeText(
+        FString::Printf(TEXT("CURRENT STEP: %s"), *StepLabel(Offseason.CurrentStep)),
+        14, DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 14.0f));
+
+    if (Offseason.CurrentStep == EOffseasonStep::Draft && Offseason.DraftClass.Num() > 0)
+    {
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            FString::Printf(TEXT("DRAFT CLASS  •  PICK %d"), Offseason.CurrentDraftPick + 1),
+            11, DashboardStyle::Primary, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+        for (int32 Index = 0; Index < Offseason.DraftClass.Num(); ++Index)
+        {
+            const FDraftProspect& Prospect = Offseason.DraftClass[Index];
+            const FLinearColor RowColor = Prospect.bDrafted ? DashboardStyle::Card : DashboardStyle::CardRaised;
+            UBorder* Row = MakeCard(RowColor);
+            Row->SetPadding(FMargin(12.0f, 6.0f));
+            UHorizontalBox* RowContent = WidgetTree->ConstructWidget<UHorizontalBox>();
+            Row->SetContent(RowContent);
+            RowContent->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("#%d"), Index + 1), 10,
+                DashboardStyle::Accent, true))->SetSize(DashboardStyle::Size(0.15f));
+            RowContent->AddChildToHorizontalBox(MakeText(Prospect.Profile.DisplayName, 11,
+                Prospect.bDrafted ? DashboardStyle::Secondary : DashboardStyle::Primary, !Prospect.bDrafted))
+                ->SetSize(DashboardStyle::Size(1.0f));
+            RowContent->AddChildToHorizontalBox(MakeText(DashboardStyle::Position(Prospect.Profile.Position), 10,
+                DashboardStyle::Accent, true))->SetSize(DashboardStyle::Size(0.2f));
+            RowContent->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("OVR %d"), Prospect.Profile.Ratings.Overall()),
+                10, DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(0.3f));
+            RowContent->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("AGE %d"), Prospect.Profile.Age),
+                10, DashboardStyle::Secondary))->SetSize(DashboardStyle::Size(0.25f));
+            if (Prospect.bDrafted)
+            {
+                const FTeamState* DraftedBy = League.Teams.FindByPredicate(
+                    [&Prospect](const FTeamState& T) { return T.TeamId == Prospect.DraftedByTeamId; });
+                UTextBlock* DraftedText = MakeText(
+                    DraftedBy ? DraftedBy->Nickname : TEXT("???"), 9, DashboardStyle::Secondary);
+                DraftedText->SetJustification(ETextJustify::Right);
+                RowContent->AddChildToHorizontalBox(DraftedText)->SetSize(DashboardStyle::Size(0.4f));
+            }
+            else
+            {
+                UTextBlock* AvailText = MakeText(TEXT("AVAILABLE"), 9, DashboardStyle::Success, true);
+                AvailText->SetJustification(ETextJustify::Right);
+                RowContent->AddChildToHorizontalBox(AvailText)->SetSize(DashboardStyle::Size(0.4f));
+            }
+            OffseasonList->AddChildToVerticalBox(Row)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f));
+        }
+    }
+
+    if (Offseason.CurrentStep == EOffseasonStep::ContractExpiry && Offseason.ExpiredContractPlayerIds.Num() > 0)
+    {
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            FString::Printf(TEXT("%d CONTRACTS EXPIRED"), Offseason.ExpiredContractPlayerIds.Num()),
+            11, DashboardStyle::Primary, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    }
+
+    if (Offseason.CurrentStep == EOffseasonStep::Complete)
+    {
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            TEXT("All offseason business is complete. Advance to begin the new season."),
+            11, DashboardStyle::Success))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    }
+
+    UButton* AdvanceButton = WidgetTree->ConstructWidget<UButton>();
+    AdvanceButton->SetBackgroundColor(DashboardStyle::Accent);
+    const FString ButtonLabel = Offseason.CurrentStep == EOffseasonStep::Complete
+        ? TEXT("START NEW SEASON") : FString::Printf(TEXT("ADVANCE: %s  >"), *StepLabel(Offseason.CurrentStep));
+    AdvanceButton->SetContent(MakeText(ButtonLabel, 11, DashboardStyle::Background, true));
+    AdvanceButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleAdvanceOffseason);
+    OffseasonList->AddChildToVerticalBox(AdvanceButton)->SetPadding(FMargin(0.0f, 14.0f, 0.0f, 0.0f));
+}
+
+void UManagementDashboardWidget::HandleAdvanceOffseason()
+{
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!Subsystem) { return; }
+    FString Error;
+    if (Subsystem->AdvanceOffseason(Error))
+    {
+        RefreshDashboard();
+        if (Subsystem->GetSeasonPhase() == ESeasonPhase::RegularSeason)
+        {
+            StatusText->SetText(FText::FromString(FString::Printf(
+                TEXT("Season %d has begun!"), Subsystem->GetSeasonNumber())));
+            StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
+            SimulateButtonText->SetText(FText::FromString(TEXT("SIMULATE ROUND  >")));
+            SimulateButton->SetIsEnabled(true);
+            SetScreen(0);
+        }
+        else
+        {
+            SetScreen(10);
+        }
     }
     else
     {
