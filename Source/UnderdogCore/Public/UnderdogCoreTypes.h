@@ -48,7 +48,7 @@ UENUM(BlueprintType)
 enum class EAwardType : uint8 { MVP, DPOY, ROY, MIP, ChampionMVP };
 
 UENUM(BlueprintType)
-enum class EOffseasonStep : uint8 { Awards, Aging, ContractExpiry, Draft, Resigning, Complete };
+enum class EOffseasonStep : uint8 { Awards, Aging, ContractExpiry, FreeAgency, Draft, Resigning, Complete };
 
 USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FPlayerRatings
@@ -151,10 +151,15 @@ struct UNDERDOGCORE_API FTeamState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FTrainingPlan TrainingPlan;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 OperatingBalanceMinorUnits = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 SalaryCapMinorUnits = 14000000000;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Chemistry = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 WinStreak = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Wins = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Losses = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PointsFor = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PointsAgainst = 0;
+    int64 TotalSalary() const { int64 Sum = 0; for (const FPlayerProfile& P : Players) { Sum += P.Contract.SalaryMinorUnits; } return Sum; }
+    bool IsOverCap() const { return TotalSalary() > SalaryCapMinorUnits; }
+    int64 LuxuryTaxThreshold() const { return SalaryCapMinorUnits + SalaryCapMinorUnits / 4; }
 };
 
 USTRUCT(BlueprintType)
@@ -293,12 +298,33 @@ struct UNDERDOGCORE_API FDraftProspect
 };
 
 USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FFreeAgent
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FPlayerProfile Profile;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PreviousTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 AskingSalary = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bSigned = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid SignedByTeamId;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FMentorship
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid VeteranId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid RookieId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 BonusRatingGain = 0;
+};
+
+USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FOffseasonState
 {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadOnly) EOffseasonStep CurrentStep = EOffseasonStep::Awards;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FDraftProspect> DraftClass;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FGuid> ExpiredContractPlayerIds;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FFreeAgent> FreeAgentPool;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CurrentDraftPick = 0;
 };
 
@@ -321,6 +347,7 @@ struct UNDERDOGCORE_API FLeagueState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SeasonNumber = 1;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FSeasonStats> SeasonStats;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FSeasonAward> Awards;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FMentorship> Mentorships;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FOffseasonState Offseason;
 };
 

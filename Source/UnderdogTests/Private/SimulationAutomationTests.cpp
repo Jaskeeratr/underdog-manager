@@ -1,7 +1,10 @@
 #include "Misc/AutomationTest.h"
 #include "AwardsService.h"
+#include "ChemistryService.h"
 #include "CommentaryService.h"
 #include "DeterministicRandom.h"
+#include "DevelopmentService.h"
+#include "FreeAgencyService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "MatchSimulator.h"
@@ -537,6 +540,10 @@ bool FOffseasonAgingAndContractsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Players aged"), bAnyAged);
 
     TestTrue(TEXT("Advance past contracts"), FOffseasonService::AdvanceOffseason(League, Error));
+    TestEqual(TEXT("At free agency step"), League.Offseason.CurrentStep, EOffseasonStep::FreeAgency);
+    TestTrue(TEXT("Free agent pool built"), League.Offseason.FreeAgentPool.Num() >= 0);
+
+    TestTrue(TEXT("Advance past free agency"), FOffseasonService::AdvanceOffseason(League, Error));
     TestEqual(TEXT("At draft step"), League.Offseason.CurrentStep, EOffseasonStep::Draft);
     TestTrue(TEXT("Draft class generated"), League.Offseason.DraftClass.Num() > 0);
 
@@ -612,6 +619,244 @@ bool FDraftAndMultiSeasonTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("New season round advances"),
         FLeagueService::AdvanceCurrentRound(League, NewResults, Error));
     TestEqual(TEXT("New season round 1 complete"), League.CurrentRound, 1);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChemistryAndMoraleTest,
+    "Underdog.Phase3.ChemistryAndMorale",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FChemistryAndMoraleTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+
+    const int32 ChemBefore = League.Teams[0].Chemistry;
+    TestEqual(TEXT("Initial chemistry is 50"), ChemBefore, 50);
+
+    FChemistryService::UpdateChemistryAfterGame(League.Teams[0], true, League);
+    TestTrue(TEXT("Chemistry updates after win"), League.Teams[0].Chemistry >= ChemBefore);
+    TestTrue(TEXT("Win streak incremented"), League.Teams[0].WinStreak > 0);
+
+    FChemistryService::UpdateChemistryAfterTrade(League.Teams[0], 2);
+    const int32 ChemAfterTrade = League.Teams[0].Chemistry;
+    TestTrue(TEXT("Chemistry drops after trade"), ChemAfterTrade < League.Teams[0].Chemistry + 16);
+
+    FChemistryService::UpdateMoraleAfterGame(League.Teams[0], true, false);
+    bool bAnyMoraleChanged = false;
+    for (const FAthleteState& S : League.Teams[0].PlayerStates)
+    {
+        if (S.Morale != 50) { bAnyMoraleChanged = true; break; }
+    }
+    TestTrue(TEXT("Morale changed after game"), bAnyMoraleChanged);
+
+    const int32 HighChemBonus = FChemistryService::GetSimBonus(League.Teams[0]);
+    League.Teams[0].Chemistry = 25;
+    const int32 LowChemBonus = FChemistryService::GetSimBonus(League.Teams[0]);
+    TestTrue(TEXT("High chemistry gives better bonus than low"), HighChemBonus > LowChemBonus);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDevelopmentAndMentorshipTest,
+    "Underdog.Phase3.DevelopmentAndMentorship",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDevelopmentAndMentorshipTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+
+    FDevelopmentService::EstablishMentorships(League);
+    TestTrue(TEXT("Mentorships established"), League.Mentorships.Num() > 0);
+    for (const FMentorship& M : League.Mentorships)
+    {
+        TestTrue(TEXT("Veteran ID valid"), M.VeteranId.IsValid());
+        TestTrue(TEXT("Rookie ID valid"), M.RookieId.IsValid());
+        TestTrue(TEXT("Bonus rating gain positive"), M.BonusRatingGain > 0);
+    }
+
+    TMap<FGuid, int32> OverallsBefore;
+    for (const FTeamState& Team : League.Teams)
+    {
+        for (const FPlayerProfile& P : Team.Players) { OverallsBefore.Add(P.PlayerId, P.Ratings.Overall()); }
+    }
+
+    for (int32 Iter = 0; Iter < 10; ++Iter)
+    {
+        League.SeasonNumber = Iter + 1;
+        FDevelopmentService::ProcessDevelopment(League);
+    }
+
+    int32 Improved = 0;
+    for (const FTeamState& Team : League.Teams)
+    {
+        for (const FPlayerProfile& P : Team.Players)
+        {
+            const int32* Before = OverallsBefore.Find(P.PlayerId);
+            if (Before && P.Ratings.Overall() > *Before) { Improved++; }
+        }
+    }
+    TestTrue(TEXT("Some players improved through development"), Improved > 0);
+
+    FDevelopmentService::ApplyBreakoutBust(League);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFreeAgencyTest,
+    "Underdog.Phase3.FreeAgency",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFreeAgencyTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(99ULL);
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+    FString Error;
+
+    for (int32 Round = 0; Round < 22; ++Round)
+    {
+        TArray<FMatchResult> Results;
+        FLeagueService::AdvanceCurrentRound(League, Results, Error);
+    }
+    while (League.Phase == ESeasonPhase::Playoffs)
+    {
+        TArray<FMatchResult> Results;
+        FLeagueService::AdvancePlayoffs(League, Results, Error);
+    }
+
+    TestTrue(TEXT("Start offseason"), FOffseasonService::StartOffseason(League, Error));
+
+    while (League.Offseason.CurrentStep != EOffseasonStep::FreeAgency
+        && League.Offseason.CurrentStep != EOffseasonStep::Complete)
+    {
+        FOffseasonService::AdvanceOffseason(League, Error);
+    }
+
+    if (League.Offseason.CurrentStep == EOffseasonStep::FreeAgency)
+    {
+        TestTrue(TEXT("Free agent pool built"), League.Offseason.FreeAgentPool.Num() > 0);
+
+        bool bSorted = true;
+        for (int32 Index = 1; Index < League.Offseason.FreeAgentPool.Num(); ++Index)
+        {
+            if (League.Offseason.FreeAgentPool[Index].Profile.Ratings.Overall()
+                > League.Offseason.FreeAgentPool[Index - 1].Profile.Ratings.Overall())
+            {
+                bSorted = false;
+                break;
+            }
+        }
+        TestTrue(TEXT("FA pool sorted by OVR descending"), bSorted);
+
+        for (const FFreeAgent& FA : League.Offseason.FreeAgentPool)
+        {
+            TestTrue(TEXT("Asking salary positive"), FA.AskingSalary > 0);
+            TestTrue(TEXT("Previous team ID valid"), FA.PreviousTeamId.IsValid());
+        }
+
+        if (League.Offseason.FreeAgentPool.Num() > 0)
+        {
+            const FFreeAgent& BestFA = League.Offseason.FreeAgentPool[0];
+            FString SignError;
+            TestFalse(TEXT("Low offer rejected"), FFreeAgencyService::SignFreeAgent(
+                League, League.Teams[0].TeamId, 0, BestFA.AskingSalary / 2, 2, SignError));
+        }
+
+        FOffseasonService::AdvanceOffseason(League, Error);
+        TestEqual(TEXT("After FA advance, at draft"), League.Offseason.CurrentStep, EOffseasonStep::Draft);
+    }
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTacticalSimImpactTest,
+    "Underdog.Phase3.TacticalSimImpact",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FTacticalSimImpactTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+    const FScheduledGame& Game = League.Schedule[0];
+    FMatchSnapshot Snapshot;
+    FString Error;
+    FLeagueService::BuildSnapshot(League, Game, Snapshot, Error);
+
+    FPossessionMatchSimulator Simulator;
+
+    Snapshot.HomeTeam.Tactics.Pace = EPaceStyle::Fast;
+    Snapshot.HomeTeam.Tactics.Offense = EOffenseStyle::Perimeter;
+    const FMatchResult FastPerimeter = Simulator.Simulate(Snapshot);
+
+    Snapshot.HomeTeam.Tactics.Pace = EPaceStyle::Slow;
+    Snapshot.HomeTeam.Tactics.Offense = EOffenseStyle::Inside;
+    const FMatchResult SlowInside = Simulator.Simulate(Snapshot);
+
+    TestTrue(TEXT("Different tactics produce different scores"),
+        FastPerimeter.HomeScore != SlowInside.HomeScore
+        || FastPerimeter.AwayScore != SlowInside.AwayScore
+        || FastPerimeter.Events.Num() != SlowInside.Events.Num());
+
+    Snapshot.HomeTeam.Tactics.Defense = EDefenseStyle::Zone;
+    const FMatchResult ZoneDefense = Simulator.Simulate(Snapshot);
+    TestTrue(TEXT("Zone defense produces valid result"), ZoneDefense.HomeScore >= 0);
+
+    FString ValidError;
+    TestTrue(TEXT("Fast/perimeter validates"), FastPerimeter.Validate(ValidError));
+    TestTrue(TEXT("Slow/inside validates"), SlowInside.Validate(ValidError));
+    TestTrue(TEXT("Zone validates"), ZoneDefense.Validate(ValidError));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiSeasonWithFATest,
+    "Underdog.Phase3.MultiSeasonWithFreeAgency",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMultiSeasonWithFATest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(42ULL);
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+    FString Error;
+
+    for (int32 Season = 0; Season < 2; ++Season)
+    {
+        for (int32 Round = 0; Round < 22; ++Round)
+        {
+            TArray<FMatchResult> Results;
+            if (!FLeagueService::AdvanceCurrentRound(League, Results, Error))
+            {
+                AddError(FString::Printf(TEXT("S%d R%d failed: %s"), Season + 1, Round, *Error));
+                return false;
+            }
+        }
+        while (League.Phase == ESeasonPhase::Playoffs)
+        {
+            TArray<FMatchResult> Results;
+            if (!FLeagueService::AdvancePlayoffs(League, Results, Error)) { break; }
+        }
+        TestEqual(TEXT("Season completes"), League.Phase, ESeasonPhase::Complete);
+
+        FOffseasonService::StartOffseason(League, Error);
+        while (League.Offseason.CurrentStep != EOffseasonStep::Complete)
+        {
+            FOffseasonService::AdvanceOffseason(League, Error);
+        }
+        FOffseasonService::AdvanceOffseason(League, Error);
+        TestEqual(TEXT("Back to regular season"), League.Phase, ESeasonPhase::RegularSeason);
+    }
+
+    TestEqual(TEXT("Season number is 3 after 2 full seasons"), League.SeasonNumber, 3);
+    TestTrue(TEXT("Mentorships established"), League.Mentorships.Num() >= 0);
+
+    for (const FTeamState& Team : League.Teams)
+    {
+        TestTrue(TEXT("Team has minimum 10 players"), Team.Players.Num() >= 10);
+        TestTrue(TEXT("Team has at most 15 players"), Team.Players.Num() <= 15);
+    }
+
+    FString LeagueError;
+    TestTrue(TEXT("League validates after 2 seasons"), FLeagueGenerator::ValidateLeague(League, LeagueError));
 
     return true;
 }

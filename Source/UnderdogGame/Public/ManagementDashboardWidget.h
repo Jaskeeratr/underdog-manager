@@ -17,6 +17,10 @@ struct FPlayoffBracket;
 struct FSeasonAward;
 enum class ETrainingFocus : uint8;
 enum class ETrainingIntensity : uint8;
+enum class EPaceStyle : uint8;
+enum class EOffenseStyle : uint8;
+enum class EDefenseStyle : uint8;
+enum class EReboundPriority : uint8;
 
 UCLASS()
 class UNDERDOGGAME_API UManagementDashboardWidget : public UUserWidget
@@ -31,7 +35,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ClubNameText;
     UPROPERTY() TObjectPtr<UTextBlock> SeasonText;
     UPROPERTY() TObjectPtr<UTextBlock> RecordText;
-    UPROPERTY() TObjectPtr<UTextBlock> BalanceText;
+    UPROPERTY() TObjectPtr<UTextBlock> ChemistryText;
+    UPROPERTY() TObjectPtr<UTextBlock> SalaryCapText;
     UPROPERTY() TObjectPtr<UTextBlock> NextOpponentText;
     UPROPERTY() TObjectPtr<UTextBlock> MatchupDetailsText;
     UPROPERTY() TObjectPtr<UTextBlock> StatusText;
@@ -50,6 +55,7 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> ResultsList;
     UPROPERTY() TObjectPtr<UVerticalBox> AwardsList;
     UPROPERTY() TObjectPtr<UVerticalBox> OffseasonList;
+    UPROPERTY() TObjectPtr<UVerticalBox> TacticsList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
@@ -68,6 +74,7 @@ private:
     void RefreshStandingsScreen(const TArray<FTeamState>& Standings, const FGuid& ClubId);
     void RefreshScoutingScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshTrainingScreen(const FTeamState& Club);
+    void RefreshTacticsScreen(const FTeamState& Club);
     void RefreshTradeScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshPlayoffScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshResultsScreen(const TArray<FMatchResult>& Results, const FLeagueState& League, const FTeamState& Club);
@@ -75,6 +82,7 @@ private:
     void RefreshOffseasonScreen(const FLeagueState& League, const FTeamState& Club);
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
+    void ApplyTactics(EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding);
 
     UFUNCTION() void HandleSimulateRound();
     UFUNCTION() void ShowOverview();
@@ -85,9 +93,23 @@ private:
     UFUNCTION() void ShowTraining();
     UFUNCTION() void ShowTrades();
     UFUNCTION() void ShowPlayoffs();
+    UFUNCTION() void ShowTactics();
     UFUNCTION() void ShowAwards();
     UFUNCTION() void ShowOffseason();
     UFUNCTION() void HandleAdvanceOffseason();
+    UFUNCTION() void HandleSignFreeAgent();
+    UFUNCTION() void SetTacticsPaceSlow();
+    UFUNCTION() void SetTacticsPaceBalanced();
+    UFUNCTION() void SetTacticsPaceFast();
+    UFUNCTION() void SetTacticsOffenseInside();
+    UFUNCTION() void SetTacticsOffenseBalanced();
+    UFUNCTION() void SetTacticsOffensePerimeter();
+    UFUNCTION() void SetTacticsDefenseMan();
+    UFUNCTION() void SetTacticsDefenseSwitching();
+    UFUNCTION() void SetTacticsDefenseZone();
+    UFUNCTION() void SetTacticsReboundTransition();
+    UFUNCTION() void SetTacticsReboundBalanced();
+    UFUNCTION() void SetTacticsReboundCrash();
     UFUNCTION() void HandleAutoRotation();
     UFUNCTION() void HandleAssignScout();
     UFUNCTION() void HandleProposeTrade();

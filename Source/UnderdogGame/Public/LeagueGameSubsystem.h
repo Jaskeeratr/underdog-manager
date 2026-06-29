@@ -41,6 +41,13 @@ public:
     UFUNCTION(BlueprintPure, Category="Underdog|Offseason") FOffseasonState GetOffseasonState() const { return League.Offseason; }
     UFUNCTION(BlueprintPure, Category="Underdog|Awards") TArray<FSeasonAward> GetAwards() const { return League.Awards; }
     UFUNCTION(BlueprintPure, Category="Underdog|Stats") TArray<FSeasonStats> GetSeasonStats() const { return League.SeasonStats; }
+    UFUNCTION(BlueprintCallable, Category="Underdog|FreeAgency") bool SignFreeAgent(const FGuid& TeamId, int32 FreeAgentIndex,
+        int64 OfferSalary, int32 OfferYears, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Tactics") bool SetTactics(const FGuid& TeamId,
+        EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding, FString& OutError);
+    UFUNCTION(BlueprintPure, Category="Underdog|FreeAgency") TArray<FFreeAgent> GetFreeAgentPool() const { return League.Offseason.FreeAgentPool; }
+    UFUNCTION(BlueprintPure, Category="Underdog|Chemistry") int32 GetChemistry(const FGuid& TeamId) const;
+    UFUNCTION(BlueprintPure, Category="Underdog|Chemistry") TArray<FMentorship> GetMentorships() const { return League.Mentorships; }
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|League") bool HasLeague() const { return League.Teams.Num() > 0; }

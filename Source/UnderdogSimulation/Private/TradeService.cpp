@@ -1,4 +1,5 @@
 #include "TradeService.h"
+#include "ChemistryService.h"
 #include "ManagementService.h"
 #include "DeterministicRandom.h"
 
@@ -231,6 +232,9 @@ bool FTradeService::ExecuteTrade(FLeagueState& League, const FGuid& TradeId, FSt
 
     FManagementService::AutoBuildRotation(League, Proposer->TeamId, OutError);
     FManagementService::AutoBuildRotation(League, Receiver->TeamId, OutError);
+    const int32 TotalMoved = Offer->Outgoing.Num() + Offer->Incoming.Num();
+    FChemistryService::UpdateChemistryAfterTrade(*Proposer, Offer->Outgoing.Num());
+    FChemistryService::UpdateChemistryAfterTrade(*Receiver, Offer->Incoming.Num());
     return true;
 }
 

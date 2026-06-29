@@ -1,4 +1,5 @@
 #include "ManagementService.h"
+#include "DevelopmentService.h"
 #include "DeterministicRandom.h"
 
 namespace
@@ -196,4 +197,8 @@ void FManagementService::ProcessRound(FLeagueState& League)
 {
     ProcessTraining(League);
     ProcessScouting(League);
+    if (League.CurrentRound % 5 == 0)
+    {
+        FDevelopmentService::ProcessDevelopment(League);
+    }
 }

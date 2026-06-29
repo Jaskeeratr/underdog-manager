@@ -119,8 +119,8 @@ void UManagementDashboardWidget::BuildLayout()
         ->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 34.0f));
 
     const FString Labels[] = { TEXT("OVERVIEW"), TEXT("ROSTER"), TEXT("SCHEDULE"),
-        TEXT("STANDINGS"), TEXT("SCOUTING"), TEXT("TRAINING"), TEXT("TRADES"), TEXT("PLAYOFFS"),
-        TEXT("AWARDS"), TEXT("OFFSEASON") };
+        TEXT("STANDINGS"), TEXT("SCOUTING"), TEXT("TRAINING"), TEXT("TACTICS"),
+        TEXT("TRADES"), TEXT("PLAYOFFS"), TEXT("AWARDS"), TEXT("OFFSEASON") };
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Labels); ++Index)
     {
         UButton* NavigationButton = MakeNavigationButton(Labels[Index], Index == 0);
@@ -132,10 +132,11 @@ void UManagementDashboardWidget::BuildLayout()
         case 3: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowStandings); break;
         case 4: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowScouting); break;
         case 5: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowTraining); break;
-        case 6: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowTrades); break;
-        case 7: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowPlayoffs); break;
-        case 8: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowAwards); break;
-        case 9: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowOffseason); break;
+        case 6: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowTactics); break;
+        case 7: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowTrades); break;
+        case 8: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowPlayoffs); break;
+        case 9: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowAwards); break;
+        case 10: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowOffseason); break;
         default: break;
         }
         NavigationBox->AddChildToVerticalBox(NavigationButton)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
@@ -183,7 +184,8 @@ void UManagementDashboardWidget::BuildLayout()
         Slot->SetPadding(FMargin(0.0f, 0.0f, 12.0f, 0.0f));
     };
     AddMetric(TEXT("SEASON RECORD"), RecordText, DashboardStyle::Primary);
-    AddMetric(TEXT("CLUB BALANCE"), BalanceText, DashboardStyle::Success);
+    AddMetric(TEXT("CHEMISTRY"), ChemistryText, DashboardStyle::Accent);
+    AddMetric(TEXT("SALARY / CAP"), SalaryCapText, DashboardStyle::Success);
 
     UBorder* MatchCard = MakeCard(DashboardStyle::CardRaised);
     UVerticalBox* MatchContent = WidgetTree->ConstructWidget<UVerticalBox>();
@@ -232,6 +234,8 @@ void UManagementDashboardWidget::BuildLayout()
         TEXT("Assign up to three scouts. Reports complete after two to three rounds."), ScoutingList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("PLAYER DEVELOPMENT"), TEXT("Training"),
         TEXT("Choose a weekly focus and balance development against fatigue and injury risk."), TrainingList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("GAME PLAN"), TEXT("Tactics"),
+        TEXT("Set pace, offense, defense, and rebounding strategies. Tactics affect simulation outcomes."), TacticsList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("TRANSACTIONS"), TEXT("Trade Centre"),
         TEXT("Propose trades with other teams. The trade deadline is round 16."), TradeList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("POSTSEASON"), TEXT("Playoff Bracket"),
@@ -298,8 +302,13 @@ void UManagementDashboardWidget::RefreshDashboard()
             TEXT("REGULAR SEASON  •  ROUND %d OF 22"), FMath::Min(League.CurrentRound + 1, 22))));
     }
     RecordText->SetText(FText::FromString(FString::Printf(TEXT("%d  -  %d"), Club.Wins, Club.Losses)));
-    BalanceText->SetText(FText::FromString(FString::Printf(
-        TEXT("$%.1fM"), Club.OperatingBalanceMinorUnits / 100000000.0)));
+    ChemistryText->SetText(FText::FromString(FString::Printf(TEXT("%d"), Club.Chemistry)));
+    ChemistryText->SetColorAndOpacity(FSlateColor(Club.Chemistry >= 65 ? DashboardStyle::Success
+        : Club.Chemistry <= 35 ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Accent));
+    SalaryCapText->SetText(FText::FromString(FString::Printf(
+        TEXT("$%.1fM / $%.1fM"), Club.TotalSalary() / 100000000.0, Club.SalaryCapMinorUnits / 100000000.0)));
+    SalaryCapText->SetColorAndOpacity(FSlateColor(Club.IsOverCap()
+        ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Success));
 
     const FScheduledGame* NextGame = League.Schedule.FindByPredicate([&Club](const FScheduledGame& Game)
     {
@@ -427,6 +436,7 @@ void UManagementDashboardWidget::RefreshDashboard()
     RefreshStandingsScreen(Standings, Club.TeamId);
     RefreshScoutingScreen(League, Club);
     RefreshTrainingScreen(Club);
+    RefreshTacticsScreen(Club);
     RefreshTradeScreen(League, Club);
     RefreshPlayoffScreen(League, Club);
     RefreshResultsScreen(LastRoundResults, League, Club);
@@ -465,7 +475,11 @@ void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League,
             DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(0.35f));
         Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("FIT %d"), State->Fitness), 10,
             State->Fitness >= 70 ? DashboardStyle::Success : DashboardStyle::Accent, true))
-            ->SetSize(DashboardStyle::Size(0.35f));
+            ->SetSize(DashboardStyle::Size(0.3f));
+        Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("MOR %d"), State->Morale), 10,
+            State->Morale >= 60 ? DashboardStyle::Success
+            : State->Morale <= 35 ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Secondary, true))
+            ->SetSize(DashboardStyle::Size(0.3f));
         const FSeasonStats* Stats = League.SeasonStats.FindByPredicate(
             [&PlayerId](const FSeasonStats& S) { return S.PlayerId == PlayerId; });
         if (Stats && Stats->GamesPlayed > 0)
@@ -675,6 +689,56 @@ void UManagementDashboardWidget::RefreshTrainingScreen(const FTeamState& Club)
     AddTrainingButton(TEXT("HIGH INTENSITY  •  +GROWTH / +INJURY RISK"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTrainingHigh));
 }
 
+void UManagementDashboardWidget::RefreshTacticsScreen(const FTeamState& Club)
+{
+    TacticsList->ClearChildren();
+
+    auto PaceLabel = [](EPaceStyle S) { return S == EPaceStyle::Fast ? TEXT("FAST") : S == EPaceStyle::Slow ? TEXT("SLOW") : TEXT("BALANCED"); };
+    auto OffenseLabel = [](EOffenseStyle S) { return S == EOffenseStyle::Perimeter ? TEXT("PERIMETER") : S == EOffenseStyle::Inside ? TEXT("INSIDE") : TEXT("BALANCED"); };
+    auto DefenseLabel = [](EDefenseStyle S) { return S == EDefenseStyle::Zone ? TEXT("ZONE") : S == EDefenseStyle::Switching ? TEXT("SWITCHING") : TEXT("MAN-TO-MAN"); };
+    auto ReboundLabel = [](EReboundPriority S) { return S == EReboundPriority::CrashBoards ? TEXT("CRASH BOARDS") : S == EReboundPriority::Transition ? TEXT("TRANSITION") : TEXT("BALANCED"); };
+
+    TacticsList->AddChildToVerticalBox(MakeText(FString::Printf(TEXT("CURRENT TACTICS  •  %s PACE  •  %s OFFENSE  •  %s DEFENSE  •  %s REBOUNDING"),
+        PaceLabel(Club.Tactics.Pace), OffenseLabel(Club.Tactics.Offense),
+        DefenseLabel(Club.Tactics.Defense), ReboundLabel(Club.Tactics.Rebounding)),
+        11, DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 16.0f));
+
+    auto AddTacticButton = [this](const FString& Label, const FName HandlerName, bool bActive)
+    {
+        UButton* Button = WidgetTree->ConstructWidget<UButton>();
+        Button->SetBackgroundColor(bActive ? DashboardStyle::AccentSoft : DashboardStyle::CardRaised);
+        Button->SetContent(MakeText(Label, 11, bActive ? DashboardStyle::Accent : DashboardStyle::Primary, bActive));
+        FScriptDelegate Handler;
+        Handler.BindUFunction(this, HandlerName);
+        Button->OnClicked.Add(Handler);
+        TacticsList->AddChildToVerticalBox(Button)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+    };
+
+    TacticsList->AddChildToVerticalBox(MakeText(TEXT("PACE"), 10, DashboardStyle::Primary, true))
+        ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
+    AddTacticButton(TEXT("SLOW  •  LONGER POSSESSIONS, DELIBERATE PLAY"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsPaceSlow), Club.Tactics.Pace == EPaceStyle::Slow);
+    AddTacticButton(TEXT("BALANCED  •  STANDARD TEMPO"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsPaceBalanced), Club.Tactics.Pace == EPaceStyle::Balanced);
+    AddTacticButton(TEXT("FAST  •  QUICK POSSESSIONS, UP-TEMPO"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsPaceFast), Club.Tactics.Pace == EPaceStyle::Fast);
+
+    TacticsList->AddChildToVerticalBox(MakeText(TEXT("OFFENSE"), 10, DashboardStyle::Primary, true))
+        ->SetPadding(FMargin(0.0f, 10.0f, 0.0f, 6.0f));
+    AddTacticButton(TEXT("INSIDE  •  POST PLAY AND DRIVES"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsOffenseInside), Club.Tactics.Offense == EOffenseStyle::Inside);
+    AddTacticButton(TEXT("BALANCED  •  MIXED ATTACK"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsOffenseBalanced), Club.Tactics.Offense == EOffenseStyle::Balanced);
+    AddTacticButton(TEXT("PERIMETER  •  THREE-POINT SHOOTING"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsOffensePerimeter), Club.Tactics.Offense == EOffenseStyle::Perimeter);
+
+    TacticsList->AddChildToVerticalBox(MakeText(TEXT("DEFENSE"), 10, DashboardStyle::Primary, true))
+        ->SetPadding(FMargin(0.0f, 10.0f, 0.0f, 6.0f));
+    AddTacticButton(TEXT("MAN-TO-MAN  •  STANDARD INDIVIDUAL MATCHUPS"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsDefenseMan), Club.Tactics.Defense == EDefenseStyle::Man);
+    AddTacticButton(TEXT("SWITCHING  •  FLEXIBLE MATCHUPS, +TURNOVERS"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsDefenseSwitching), Club.Tactics.Defense == EDefenseStyle::Switching);
+    AddTacticButton(TEXT("ZONE  •  PAINT PROTECTION, +BLOCKS +TURNOVERS"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsDefenseZone), Club.Tactics.Defense == EDefenseStyle::Zone);
+
+    TacticsList->AddChildToVerticalBox(MakeText(TEXT("REBOUNDING"), 10, DashboardStyle::Primary, true))
+        ->SetPadding(FMargin(0.0f, 10.0f, 0.0f, 6.0f));
+    AddTacticButton(TEXT("TRANSITION  •  FAST BREAK PRIORITY"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsReboundTransition), Club.Tactics.Rebounding == EReboundPriority::Transition);
+    AddTacticButton(TEXT("BALANCED  •  STANDARD BOARD WORK"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsReboundBalanced), Club.Tactics.Rebounding == EReboundPriority::Balanced);
+    AddTacticButton(TEXT("CRASH BOARDS  •  OFFENSIVE REBOUNDS, +POSSESSIONS"), GET_FUNCTION_NAME_CHECKED(UManagementDashboardWidget, SetTacticsReboundCrash), Club.Tactics.Rebounding == EReboundPriority::CrashBoards);
+}
+
 void UManagementDashboardWidget::SetScreen(int32 Index)
 {
     if (ScreenSwitcher) { ScreenSwitcher->SetActiveWidgetIndex(Index); }
@@ -686,10 +750,11 @@ void UManagementDashboardWidget::ShowSchedule() { SetScreen(2); }
 void UManagementDashboardWidget::ShowStandings() { SetScreen(3); }
 void UManagementDashboardWidget::ShowScouting() { SetScreen(4); }
 void UManagementDashboardWidget::ShowTraining() { SetScreen(5); }
-void UManagementDashboardWidget::ShowTrades() { SetScreen(6); }
-void UManagementDashboardWidget::ShowPlayoffs() { SetScreen(7); }
-void UManagementDashboardWidget::ShowAwards() { SetScreen(9); }
-void UManagementDashboardWidget::ShowOffseason() { SetScreen(10); }
+void UManagementDashboardWidget::ShowTactics() { SetScreen(6); }
+void UManagementDashboardWidget::ShowTrades() { SetScreen(7); }
+void UManagementDashboardWidget::ShowPlayoffs() { SetScreen(8); }
+void UManagementDashboardWidget::ShowAwards() { SetScreen(10); }
+void UManagementDashboardWidget::ShowOffseason() { SetScreen(11); }
 
 void UManagementDashboardWidget::HandleAutoRotation()
 {
@@ -1004,14 +1069,14 @@ void UManagementDashboardWidget::HandleProposeTrade()
     if (Subsystem->ProposeTrade(Club.TeamId, Outgoing, SelectedTradeTeamId, Incoming, Error))
     {
         RefreshDashboard();
-        SetScreen(6);
+        SetScreen(7);
         StatusText->SetText(FText::FromString(TEXT("Trade accepted and executed!")));
         StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
     }
     else
     {
         RefreshDashboard();
-        SetScreen(6);
+        SetScreen(7);
         StatusText->SetText(FText::FromString(Error));
         StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
     }
@@ -1030,6 +1095,69 @@ void UManagementDashboardWidget::SetTrainingRecovery()
 void UManagementDashboardWidget::SetTrainingHigh()
 { const FLeagueState League = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (League.Teams.Num()) { ApplyTrainingPlan(League.Teams[0].TrainingPlan.Focus, ETrainingIntensity::High); } }
 
+void UManagementDashboardWidget::ApplyTactics(EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding)
+{
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    const FLeagueState League = Subsystem->GetLeague();
+    if (League.Teams.Num() == 0) { return; }
+    FString Error;
+    if (Subsystem->SetTactics(League.Teams[0].TeamId, Pace, Offense, Defense, Rebounding, Error))
+    { RefreshDashboard(); SetScreen(6); }
+}
+
+void UManagementDashboardWidget::SetTacticsPaceSlow()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(EPaceStyle::Slow, L.Teams[0].Tactics.Offense, L.Teams[0].Tactics.Defense, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsPaceBalanced()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(EPaceStyle::Balanced, L.Teams[0].Tactics.Offense, L.Teams[0].Tactics.Defense, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsPaceFast()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(EPaceStyle::Fast, L.Teams[0].Tactics.Offense, L.Teams[0].Tactics.Defense, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsOffenseInside()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, EOffenseStyle::Inside, L.Teams[0].Tactics.Defense, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsOffenseBalanced()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, EOffenseStyle::Balanced, L.Teams[0].Tactics.Defense, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsOffensePerimeter()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, EOffenseStyle::Perimeter, L.Teams[0].Tactics.Defense, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsDefenseMan()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, L.Teams[0].Tactics.Offense, EDefenseStyle::Man, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsDefenseSwitching()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, L.Teams[0].Tactics.Offense, EDefenseStyle::Switching, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsDefenseZone()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, L.Teams[0].Tactics.Offense, EDefenseStyle::Zone, L.Teams[0].Tactics.Rebounding); } }
+void UManagementDashboardWidget::SetTacticsReboundTransition()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, L.Teams[0].Tactics.Offense, L.Teams[0].Tactics.Defense, EReboundPriority::Transition); } }
+void UManagementDashboardWidget::SetTacticsReboundBalanced()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, L.Teams[0].Tactics.Offense, L.Teams[0].Tactics.Defense, EReboundPriority::Balanced); } }
+void UManagementDashboardWidget::SetTacticsReboundCrash()
+{ const FLeagueState L = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>()->GetLeague(); if (L.Teams.Num()) { ApplyTactics(L.Teams[0].Tactics.Pace, L.Teams[0].Tactics.Offense, L.Teams[0].Tactics.Defense, EReboundPriority::CrashBoards); } }
+
+void UManagementDashboardWidget::HandleSignFreeAgent()
+{
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    const FLeagueState League = Subsystem->GetLeague();
+    if (League.Teams.Num() == 0) { return; }
+    const TArray<FFreeAgent>& Pool = League.Offseason.FreeAgentPool;
+    int32 BestIndex = -1;
+    for (int32 Index = 0; Index < Pool.Num(); ++Index)
+    {
+        if (!Pool[Index].bSigned) { BestIndex = Index; break; }
+    }
+    if (BestIndex < 0) { return; }
+    FString Error;
+    const FFreeAgent& FA = Pool[BestIndex];
+    if (Subsystem->SignFreeAgent(League.Teams[0].TeamId, BestIndex, FA.AskingSalary, 2, Error))
+    {
+        RefreshDashboard();
+        SetScreen(11);
+        StatusText->SetText(FText::FromString(FString::Printf(TEXT("Signed %s!"), *FA.Profile.DisplayName)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
+    }
+    else
+    {
+        StatusText->SetText(FText::FromString(Error));
+        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+    }
+}
+
 void UManagementDashboardWidget::HandleSimulateRound()
 {
     ULeagueGameSubsystem* LeagueSubsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
@@ -1043,7 +1171,7 @@ void UManagementDashboardWidget::HandleSimulateRound()
             RefreshDashboard();
             StatusText->SetText(FText::FromString(TEXT("Offseason has begun. Step through each phase.")));
             StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
-            SetScreen(10);
+            SetScreen(11);
         }
         else
         {
@@ -1089,7 +1217,7 @@ void UManagementDashboardWidget::HandleSimulateRound()
         StatusText->SetText(FText::FromString(FString::Printf(
             TEXT("%s complete  •  %d games resolved"), *PhaseLabel, Results.Num())));
         StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
-        SetScreen(8);
+        SetScreen(9);
     }
     else
     {
@@ -1190,6 +1318,7 @@ void UManagementDashboardWidget::RefreshOffseasonScreen(const FLeagueState& Leag
         case EOffseasonStep::Awards: return TEXT("AWARDS");
         case EOffseasonStep::Aging: return TEXT("AGING & DEVELOPMENT");
         case EOffseasonStep::ContractExpiry: return TEXT("CONTRACT EXPIRY");
+        case EOffseasonStep::FreeAgency: return TEXT("FREE AGENCY");
         case EOffseasonStep::Draft: return TEXT("ROOKIE DRAFT");
         case EOffseasonStep::Resigning: return TEXT("RE-SIGNING");
         case EOffseasonStep::Complete: return TEXT("OFFSEASON COMPLETE");
@@ -1201,6 +1330,49 @@ void UManagementDashboardWidget::RefreshOffseasonScreen(const FLeagueState& Leag
     OffseasonList->AddChildToVerticalBox(MakeText(
         FString::Printf(TEXT("CURRENT STEP: %s"), *StepLabel(Offseason.CurrentStep)),
         14, DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 14.0f));
+
+    if (Offseason.CurrentStep == EOffseasonStep::FreeAgency && Offseason.FreeAgentPool.Num() > 0)
+    {
+        int32 Available = 0;
+        for (const FFreeAgent& FA : Offseason.FreeAgentPool) { Available += FA.bSigned ? 0 : 1; }
+        OffseasonList->AddChildToVerticalBox(MakeText(
+            FString::Printf(TEXT("FREE AGENT MARKET  •  %d AVAILABLE"), Available),
+            11, DashboardStyle::Primary, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+        int32 Shown = 0;
+        for (int32 Index = 0; Index < Offseason.FreeAgentPool.Num() && Shown < 8; ++Index)
+        {
+            const FFreeAgent& FA = Offseason.FreeAgentPool[Index];
+            if (FA.bSigned) { continue; }
+            Shown++;
+            UBorder* Row = MakeCard(DashboardStyle::CardRaised);
+            Row->SetPadding(FMargin(12.0f, 6.0f));
+            UHorizontalBox* RowContent = WidgetTree->ConstructWidget<UHorizontalBox>();
+            Row->SetContent(RowContent);
+            RowContent->AddChildToHorizontalBox(MakeText(FA.Profile.DisplayName, 11,
+                DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(1.0f));
+            RowContent->AddChildToHorizontalBox(MakeText(DashboardStyle::Position(FA.Profile.Position), 10,
+                DashboardStyle::Accent, true))->SetSize(DashboardStyle::Size(0.2f));
+            RowContent->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("OVR %d"), FA.Profile.Ratings.Overall()),
+                10, DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(0.3f));
+            RowContent->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("AGE %d"), FA.Profile.Age),
+                10, DashboardStyle::Secondary))->SetSize(DashboardStyle::Size(0.25f));
+            UTextBlock* Salary = MakeText(FString::Printf(TEXT("$%.1fM"), FA.AskingSalary / 100000000.0),
+                9, DashboardStyle::Accent);
+            Salary->SetJustification(ETextJustify::Right);
+            RowContent->AddChildToHorizontalBox(Salary)->SetSize(DashboardStyle::Size(0.4f));
+            OffseasonList->AddChildToVerticalBox(Row)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f));
+        }
+
+        if (Club.Players.Num() < 15 && Available > 0)
+        {
+            UButton* SignButton = WidgetTree->ConstructWidget<UButton>();
+            SignButton->SetBackgroundColor(DashboardStyle::Accent);
+            SignButton->SetContent(MakeText(TEXT("SIGN BEST AVAILABLE FREE AGENT"), 11, DashboardStyle::Background, true));
+            SignButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleSignFreeAgent);
+            OffseasonList->AddChildToVerticalBox(SignButton)->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 10.0f));
+        }
+    }
 
     if (Offseason.CurrentStep == EOffseasonStep::Draft && Offseason.DraftClass.Num() > 0)
     {
@@ -1288,7 +1460,7 @@ void UManagementDashboardWidget::HandleAdvanceOffseason()
         }
         else
         {
-            SetScreen(10);
+            SetScreen(11);
         }
     }
     else

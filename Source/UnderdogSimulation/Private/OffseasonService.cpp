@@ -1,5 +1,7 @@
 #include "OffseasonService.h"
 #include "AwardsService.h"
+#include "DevelopmentService.h"
+#include "FreeAgencyService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
@@ -58,11 +60,18 @@ bool FOffseasonService::AdvanceOffseason(FLeagueState& League, FString& OutError
 
     case EOffseasonStep::Aging:
         ProcessAging(League);
+        FDevelopmentService::ApplyBreakoutBust(League);
         League.Offseason.CurrentStep = EOffseasonStep::ContractExpiry;
         break;
 
     case EOffseasonStep::ContractExpiry:
         ProcessContractExpiry(League);
+        League.Offseason.CurrentStep = EOffseasonStep::FreeAgency;
+        FFreeAgencyService::BuildFreeAgentPool(League);
+        break;
+
+    case EOffseasonStep::FreeAgency:
+        FFreeAgencyService::AutoSignFreeAgents(League);
         League.Offseason.CurrentStep = EOffseasonStep::Draft;
         GenerateDraftClass(League);
         break;
@@ -305,4 +314,6 @@ void FOffseasonService::ResetForNewSeason(FLeagueState& League)
 
     League.Schedule = FLeagueGenerator::GenerateDoubleRoundRobin(League.Teams,
         static_cast<uint64>(League.LeagueSeed) ^ (static_cast<uint64>(League.SeasonNumber) << 40));
+
+    FDevelopmentService::EstablishMentorships(League);
 }

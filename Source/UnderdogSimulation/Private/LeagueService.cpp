@@ -1,4 +1,5 @@
 #include "LeagueService.h"
+#include "ChemistryService.h"
 #include "DeterministicRandom.h"
 #include "ManagementService.h"
 #include "MatchSimulator.h"
@@ -91,6 +92,11 @@ void FLeagueService::ApplyResult(FLeagueState& League, FScheduledGame& Game, con
     ApplyPlayerConsequences(*Home, Result.HomeBoxScore, bHomeWon, static_cast<uint64>(Result.Seed) ^ 0x484F4D45ULL);
     ApplyPlayerConsequences(*Away, Result.AwayBoxScore, !bHomeWon, static_cast<uint64>(Result.Seed) ^ 0x41574159ULL);
     FAwardsService::AccumulateBoxScore(League, Result, Game.HomeTeamId, Game.AwayTeamId);
+    const bool bCloseGame = FMath::Abs(Result.HomeScore - Result.AwayScore) <= 5;
+    FChemistryService::UpdateMoraleAfterGame(*Home, bHomeWon, bCloseGame);
+    FChemistryService::UpdateMoraleAfterGame(*Away, !bHomeWon, bCloseGame);
+    FChemistryService::UpdateChemistryAfterGame(*Home, bHomeWon, League);
+    FChemistryService::UpdateChemistryAfterGame(*Away, !bHomeWon, League);
 }
 
 bool FLeagueService::SimulateGame(FLeagueState& League, const FGuid& GameId, FMatchResult& OutResult, FString& OutError)

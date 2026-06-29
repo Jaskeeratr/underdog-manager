@@ -1,4 +1,5 @@
 #include "MatchSimulator.h"
+#include "ChemistryService.h"
 #include "DeterministicRandom.h"
 
 namespace
@@ -118,9 +119,23 @@ FMatchResult FPossessionMatchSimulator::Simulate(const FMatchSnapshot& Snapshot)
             const FPlayerProfile& Shooter = SelectShooter(Offense, Random);
             const FPlayerProfile& Defender = SelectSupportingPlayer(Defense, FGuid(), Random);
             FPlayerBoxScore& Box = FindBox(OffensiveBoxes, Shooter.PlayerId);
-            Clock = FMath::Max(0, Clock - Random.Range(8, 24));
+            const int32 PaceMin = Offense.Tactics.Pace == EPaceStyle::Fast ? 6 : Offense.Tactics.Pace == EPaceStyle::Slow ? 12 : 8;
+            const int32 PaceMax = Offense.Tactics.Pace == EPaceStyle::Fast ? 18 : Offense.Tactics.Pace == EPaceStyle::Slow ? 28 : 24;
+            Clock = FMath::Max(0, Clock - Random.Range(PaceMin, PaceMax));
 
-            const int32 TurnoverChance = FMath::Clamp(1450 - Shooter.Ratings.Playmaking * 7 + Defender.Ratings.PerimeterDefense * 3, 700, 2300);
+            const int32 DefenseBonus = Defense.Tactics.Defense == EDefenseStyle::Zone ? 120
+                : Defense.Tactics.Defense == EDefenseStyle::Switching ? 60 : 0;
+            const int32 ChemistryMod = FChemistryService::GetSimBonus(Offense) - FChemistryService::GetSimBonus(Defense);
+            int32 MoraleAvg = 50;
+            if (Offense.PlayerStates.Num() > 0)
+            {
+                int32 MoraleSum = 0;
+                for (const FAthleteState& S : Offense.PlayerStates) { MoraleSum += S.Morale; }
+                MoraleAvg = MoraleSum / Offense.PlayerStates.Num();
+            }
+            const int32 MoraleMod = (MoraleAvg - 50) * 3;
+
+            const int32 TurnoverChance = FMath::Clamp(1450 - Shooter.Ratings.Playmaking * 7 + Defender.Ratings.PerimeterDefense * 3 + DefenseBonus - MoraleMod / 2, 700, 2500);
             if (Random.ChancePerTenThousand(TurnoverChance))
             {
                 Box.Turnovers++;
@@ -142,7 +157,7 @@ FMatchResult FPossessionMatchSimulator::Simulate(const FMatchSnapshot& Snapshot)
                 ? Random.ChancePerTenThousand(2600) : Random.ChancePerTenThousand(3900);
             const int32 Attack = bThree ? Shooter.Ratings.OutsideShooting : Shooter.Ratings.InsideScoring;
             const int32 DefenseRating = bThree ? Defender.Ratings.PerimeterDefense : Defender.Ratings.InteriorDefense;
-            const int32 MakeChance = FMath::Clamp((bThree ? 3000 : 4500) + (Attack - DefenseRating) * 45 + (bHomePossession ? 180 : 0), 1800, 7200);
+            const int32 MakeChance = FMath::Clamp((bThree ? 3000 : 4500) + (Attack - DefenseRating) * 45 + (bHomePossession ? 180 : 0) + ChemistryMod + MoraleMod, 1800, 7200);
 
             if (Random.ChancePerTenThousand(bThree ? 450 : 800))
             {
@@ -169,7 +184,8 @@ FMatchResult FPossessionMatchSimulator::Simulate(const FMatchSnapshot& Snapshot)
             }
 
             Box.FieldGoalsAttempted++;
-            const bool bBlocked = Random.ChancePerTenThousand(FMath::Clamp(250 + Defender.Ratings.InteriorDefense * (bThree ? 2 : 6), 300, 1200));
+            const int32 ZoneBlockBonus = Defense.Tactics.Defense == EDefenseStyle::Zone && !bThree ? 150 : 0;
+            const bool bBlocked = Random.ChancePerTenThousand(FMath::Clamp(250 + Defender.Ratings.InteriorDefense * (bThree ? 2 : 6) + ZoneBlockBonus, 300, 1400));
             if (!bBlocked && Random.ChancePerTenThousand(MakeChance))
             {
                 Box.FieldGoalsMade++;

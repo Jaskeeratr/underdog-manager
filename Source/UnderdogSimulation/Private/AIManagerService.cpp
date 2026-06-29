@@ -38,6 +38,7 @@ void FAIManagerService::ProcessRound(FLeagueState& League, const FGuid& PlayerTe
         if (Team.TeamId == PlayerTeamId) { continue; }
         AdjustRotation(League, Team);
         ChooseTraining(Team);
+        AdjustTactics(Team);
         AssignScouts(League, Team);
         ConsiderTrades(League, Team);
     }
@@ -122,6 +123,32 @@ void FAIManagerService::AssignScouts(FLeagueState& League, FTeamState& Team)
             }
         }
     }
+}
+
+void FAIManagerService::AdjustTactics(FTeamState& Team)
+{
+    int32 InsideAvg = 0, OutsideAvg = 0, AthleticismAvg = 0, InteriorDefAvg = 0;
+    for (const FPlayerProfile& P : Team.Players)
+    {
+        InsideAvg += P.Ratings.InsideScoring;
+        OutsideAvg += P.Ratings.OutsideShooting;
+        AthleticismAvg += P.Ratings.Athleticism;
+        InteriorDefAvg += P.Ratings.InteriorDefense;
+    }
+    if (Team.Players.Num() > 0)
+    {
+        InsideAvg /= Team.Players.Num();
+        OutsideAvg /= Team.Players.Num();
+        AthleticismAvg /= Team.Players.Num();
+        InteriorDefAvg /= Team.Players.Num();
+    }
+
+    Team.Tactics.Offense = OutsideAvg > InsideAvg + 5 ? EOffenseStyle::Perimeter
+        : InsideAvg > OutsideAvg + 5 ? EOffenseStyle::Inside : EOffenseStyle::Balanced;
+    Team.Tactics.Pace = AthleticismAvg >= 65 ? EPaceStyle::Fast
+        : AthleticismAvg <= 45 ? EPaceStyle::Slow : EPaceStyle::Balanced;
+    Team.Tactics.Defense = InteriorDefAvg >= 60 ? EDefenseStyle::Zone
+        : InteriorDefAvg <= 40 ? EDefenseStyle::Switching : EDefenseStyle::Man;
 }
 
 void FAIManagerService::ConsiderTrades(FLeagueState& League, FTeamState& Team)

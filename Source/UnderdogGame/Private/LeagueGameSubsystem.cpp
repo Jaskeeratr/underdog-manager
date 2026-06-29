@@ -1,4 +1,5 @@
 #include "LeagueGameSubsystem.h"
+#include "FreeAgencyService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
@@ -98,6 +99,35 @@ bool ULeagueGameSubsystem::DraftPlayer(const FGuid& TeamId, int32 ProspectIndex,
     if (!FOffseasonService::DraftPlayer(League, TeamId, ProspectIndex, OutError)) { return false; }
     OnLeagueChanged.Broadcast();
     return true;
+}
+
+bool ULeagueGameSubsystem::SignFreeAgent(const FGuid& TeamId, int32 FreeAgentIndex,
+    int64 OfferSalary, int32 OfferYears, FString& OutError)
+{
+    if (!FFreeAgencyService::SignFreeAgent(League, TeamId, FreeAgentIndex, OfferSalary, OfferYears, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::SetTactics(const FGuid& TeamId,
+    EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding, FString& OutError)
+{
+    FTeamState* Team = League.Teams.FindByPredicate(
+        [&TeamId](const FTeamState& T) { return T.TeamId == TeamId; });
+    if (!Team) { OutError = TEXT("Team not found."); return false; }
+    Team->Tactics.Pace = Pace;
+    Team->Tactics.Offense = Offense;
+    Team->Tactics.Defense = Defense;
+    Team->Tactics.Rebounding = Rebounding;
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+int32 ULeagueGameSubsystem::GetChemistry(const FGuid& TeamId) const
+{
+    const FTeamState* Team = League.Teams.FindByPredicate(
+        [&TeamId](const FTeamState& T) { return T.TeamId == TeamId; });
+    return Team ? Team->Chemistry : 50;
 }
 
 bool ULeagueGameSubsystem::SaveLeagueAsync(const FString& SlotName, FString& OutError)

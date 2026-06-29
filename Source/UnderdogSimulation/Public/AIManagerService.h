@@ -11,6 +11,7 @@ public:
 private:
     static void AdjustRotation(FLeagueState& League, FTeamState& Team);
     static void ChooseTraining(FTeamState& Team);
+    static void AdjustTactics(FTeamState& Team);
     static void AssignScouts(FLeagueState& League, FTeamState& Team);
     static void ConsiderTrades(FLeagueState& League, FTeamState& Team);
 };
