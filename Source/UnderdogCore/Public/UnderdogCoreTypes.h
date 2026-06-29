@@ -25,6 +25,12 @@ UENUM(BlueprintType)
 enum class EReboundPriority : uint8 { Transition, Balanced, CrashBoards };
 
 UENUM(BlueprintType)
+enum class ETrainingFocus : uint8 { Balanced, Shooting, Playmaking, Defense, Rebounding, Conditioning };
+
+UENUM(BlueprintType)
+enum class ETrainingIntensity : uint8 { Recovery, Normal, High };
+
+UENUM(BlueprintType)
 enum class EMatchEventType : uint8
 {
     GameStarted, TwoPointMade, TwoPointMissed, ThreePointMade, ThreePointMissed,
@@ -85,6 +91,15 @@ struct UNDERDOGCORE_API FAthleteState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Morale = 50;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 InjuryGamesRemaining = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RecentForm = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SeasonDevelopment = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FTrainingPlan
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) ETrainingFocus Focus = ETrainingFocus::Balanced;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) ETrainingIntensity Intensity = ETrainingIntensity::Normal;
 };
 
 USTRUCT(BlueprintType)
@@ -121,6 +136,7 @@ struct UNDERDOGCORE_API FTeamState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FAthleteState> PlayerStates;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FRotationPlan Rotation;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamTactics Tactics;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTrainingPlan TrainingPlan;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 OperatingBalanceMinorUnits = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 SalaryCapMinorUnits = 14000000000;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Wins = 0;
@@ -143,6 +159,32 @@ struct UNDERDOGCORE_API FScheduledGame
 };
 
 USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FScoutingAssignment
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid AssignmentId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid RequestedByTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 StartedRound = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CompletionRound = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bComplete = false;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FScoutingReport
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid AssignmentId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid RequestedByTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 OverallMin = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 OverallMax = 99;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PotentialMin = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PotentialMax = 99;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CompletedRound = 0;
+};
+
+USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FLeagueState
 {
     GENERATED_BODY()
@@ -152,6 +194,8 @@ struct UNDERDOGCORE_API FLeagueState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CurrentRound = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FTeamState> Teams;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FScheduledGame> Schedule;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FScoutingAssignment> ScoutingAssignments;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FScoutingReport> ScoutingReports;
 };
 
 USTRUCT(BlueprintType)

@@ -22,6 +22,11 @@ public:
     UFUNCTION(BlueprintCallable, Category="Underdog|League") bool SimulateGame(const FGuid& GameId, FMatchResult& OutResult, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|League") bool AdvanceCurrentRound(TArray<FMatchResult>& OutResults, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|League") TArray<FTeamState> GetStandings() const;
+    UFUNCTION(BlueprintCallable, Category="Underdog|Roster") bool AutoBuildRotation(const FGuid& TeamId, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Training") bool SetTrainingPlan(const FGuid& TeamId,
+        ETrainingFocus Focus, ETrainingIntensity Intensity, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Scouting") bool AssignScout(const FGuid& TeamId,
+        const FGuid& PlayerId, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|League") bool HasLeague() const { return League.Teams.Num() > 0; }

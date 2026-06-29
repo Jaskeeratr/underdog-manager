@@ -8,4 +8,7 @@ UCLASS()
 class UNDERDOGGAME_API AUnderdogGameMode : public AGameModeBase
 {
     GENERATED_BODY()
+
+public:
+    AUnderdogGameMode();
 };

@@ -10,7 +10,7 @@
     { "Name": "UnderdogTests", "Type": "DeveloperTool", "LoadingPhase": "PostEngineInit" }
   ],
   "Plugins": [
-    { "Name": "CommonUI", "Enabled": true },
+    { "Name": "CommonUI", "Enabled": false },
     { "Name": "EnhancedInput", "Enabled": true },
     { "Name": "AndroidFileServer", "Enabled": false }
   ]

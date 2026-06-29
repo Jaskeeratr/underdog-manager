@@ -1,0 +1,77 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Blueprint/UserWidget.h"
+#include "ManagementDashboardWidget.generated.h"
+
+class UBorder;
+class UButton;
+class UTextBlock;
+class UVerticalBox;
+class UWidgetSwitcher;
+struct FLeagueState;
+struct FTeamState;
+enum class ETrainingFocus : uint8;
+enum class ETrainingIntensity : uint8;
+
+UCLASS()
+class UNDERDOGGAME_API UManagementDashboardWidget : public UUserWidget
+{
+    GENERATED_BODY()
+
+protected:
+    virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual void NativeConstruct() override;
+
+private:
+    UPROPERTY() TObjectPtr<UTextBlock> ClubNameText;
+    UPROPERTY() TObjectPtr<UTextBlock> SeasonText;
+    UPROPERTY() TObjectPtr<UTextBlock> RecordText;
+    UPROPERTY() TObjectPtr<UTextBlock> BalanceText;
+    UPROPERTY() TObjectPtr<UTextBlock> NextOpponentText;
+    UPROPERTY() TObjectPtr<UTextBlock> MatchupDetailsText;
+    UPROPERTY() TObjectPtr<UTextBlock> StatusText;
+    UPROPERTY() TObjectPtr<UVerticalBox> RosterList;
+    UPROPERTY() TObjectPtr<UVerticalBox> StandingsList;
+    UPROPERTY() TObjectPtr<UButton> SimulateButton;
+    UPROPERTY() TObjectPtr<UWidgetSwitcher> ScreenSwitcher;
+    UPROPERTY() TObjectPtr<UVerticalBox> RosterDetailList;
+    UPROPERTY() TObjectPtr<UVerticalBox> ScheduleList;
+    UPROPERTY() TObjectPtr<UVerticalBox> StandingsDetailList;
+    UPROPERTY() TObjectPtr<UVerticalBox> ScoutingList;
+    UPROPERTY() TObjectPtr<UVerticalBox> TrainingList;
+    UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
+    UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
+    FGuid RecommendedScoutPlayerId;
+
+    void BuildLayout();
+    void RefreshDashboard();
+    UTextBlock* MakeText(const FString& Text, int32 Size, const FLinearColor& Color, bool bBold = false);
+    UBorder* MakeCard(const FLinearColor& Color);
+    UButton* MakeNavigationButton(const FString& Label, bool bActive);
+    UVerticalBox* MakeDetailScreen(const FString& Eyebrow, const FString& Title, const FString& Description,
+        TObjectPtr<UVerticalBox>& OutList);
+    void RefreshRosterScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshScheduleScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshStandingsScreen(const TArray<FTeamState>& Standings, const FGuid& ClubId);
+    void RefreshScoutingScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshTrainingScreen(const FTeamState& Club);
+    void SetScreen(int32 Index);
+    void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
+
+    UFUNCTION() void HandleSimulateRound();
+    UFUNCTION() void ShowOverview();
+    UFUNCTION() void ShowRoster();
+    UFUNCTION() void ShowSchedule();
+    UFUNCTION() void ShowStandings();
+    UFUNCTION() void ShowScouting();
+    UFUNCTION() void ShowTraining();
+    UFUNCTION() void HandleAutoRotation();
+    UFUNCTION() void HandleAssignScout();
+    UFUNCTION() void SetTrainingBalanced();
+    UFUNCTION() void SetTrainingShooting();
+    UFUNCTION() void SetTrainingDefense();
+    UFUNCTION() void SetTrainingConditioning();
+    UFUNCTION() void SetTrainingRecovery();
+    UFUNCTION() void SetTrainingHigh();
+};

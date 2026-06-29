@@ -3,6 +3,7 @@
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "MatchSimulator.h"
+#include "ManagementService.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -118,6 +119,43 @@ bool FRoundAdvanceAndStandingsTest::RunTest(const FString& Parameters)
     for (int32 Index = 1; Index < Standings.Num(); ++Index)
     {
         TestTrue(TEXT("Standings are ordered by wins"), Standings[Index - 1].Wins >= Standings[Index].Wins);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FManagementSystemsTest,
+    "Underdog.Management.TrainingScoutingAndRotation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FManagementSystemsTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+    const FGuid ClubId = League.Teams[0].TeamId;
+    FString Error;
+    TestTrue(TEXT("Automatic rotation succeeds"), FManagementService::AutoBuildRotation(League, ClubId, Error));
+    TestTrue(TEXT("Automatic rotation validates"), League.Teams[0].Rotation.IsValid(Error));
+
+    TestTrue(TEXT("Training plan can be changed"), FManagementService::SetTrainingPlan(League, ClubId,
+        ETrainingFocus::Shooting, ETrainingIntensity::High, Error));
+    TestEqual(TEXT("Training focus persists"), League.Teams[0].TrainingPlan.Focus, ETrainingFocus::Shooting);
+    const int32 FatigueBefore = League.Teams[0].PlayerStates[0].Fatigue;
+
+    for (int32 Index = 0; Index < 3; ++Index)
+    {
+        TestTrue(TEXT("Scouting slot accepts assignment"), FManagementService::AssignScout(
+            League, ClubId, League.Teams[1].Players[Index].PlayerId, Error));
+    }
+    TestFalse(TEXT("Fourth concurrent scout is rejected"), FManagementService::AssignScout(
+        League, ClubId, League.Teams[1].Players[3].PlayerId, Error));
+    League.CurrentRound = 3;
+    FManagementService::ProcessRound(League);
+    TestTrue(TEXT("High intensity adds training load"),
+        League.Teams[0].PlayerStates[0].Fatigue > FatigueBefore);
+    TestEqual(TEXT("All three reports complete"), League.ScoutingReports.Num(), 3);
+    for (const FScoutingReport& Report : League.ScoutingReports)
+    {
+        TestTrue(TEXT("Overall range is ordered"), Report.OverallMin <= Report.OverallMax);
+        TestTrue(TEXT("Potential range is ordered"), Report.PotentialMin <= Report.PotentialMax);
     }
     return true;
 }

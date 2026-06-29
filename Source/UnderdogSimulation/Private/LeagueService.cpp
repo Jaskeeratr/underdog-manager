@@ -1,5 +1,6 @@
 #include "LeagueService.h"
 #include "DeterministicRandom.h"
+#include "ManagementService.h"
 #include "MatchSimulator.h"
 
 bool FLeagueService::BuildSnapshot(
@@ -131,6 +132,7 @@ bool FLeagueService::AdvanceCurrentRound(FLeagueState& League, TArray<FMatchResu
         CandidateResults.Add(MoveTemp(Result));
     }
     CandidateLeague.CurrentRound++;
+    FManagementService::ProcessRound(CandidateLeague);
     League = MoveTemp(CandidateLeague);
     OutResults = MoveTemp(CandidateResults);
     return true;

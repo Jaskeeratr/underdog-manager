@@ -1,6 +1,7 @@
 #include "LeagueGameSubsystem.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
+#include "ManagementService.h"
 #include "UnderdogSaveGame.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -30,6 +31,28 @@ bool ULeagueGameSubsystem::AdvanceCurrentRound(TArray<FMatchResult>& OutResults,
 TArray<FTeamState> ULeagueGameSubsystem::GetStandings() const
 {
     return FLeagueService::GetStandings(League);
+}
+
+bool ULeagueGameSubsystem::AutoBuildRotation(const FGuid& TeamId, FString& OutError)
+{
+    if (!FManagementService::AutoBuildRotation(League, TeamId, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::SetTrainingPlan(const FGuid& TeamId,
+    ETrainingFocus Focus, ETrainingIntensity Intensity, FString& OutError)
+{
+    if (!FManagementService::SetTrainingPlan(League, TeamId, Focus, Intensity, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::AssignScout(const FGuid& TeamId, const FGuid& PlayerId, FString& OutError)
+{
+    if (!FManagementService::AssignScout(League, TeamId, PlayerId, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
 }
 
 bool ULeagueGameSubsystem::SaveLeagueAsync(const FString& SlotName, FString& OutError)
