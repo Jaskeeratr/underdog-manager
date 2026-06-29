@@ -4,6 +4,8 @@
 #include "LeagueService.h"
 #include "MatchSimulator.h"
 #include "ManagementService.h"
+#include "TradeService.h"
+#include "AIManagerService.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -185,6 +187,170 @@ bool FFullRegularSeasonTest::RunTest(const FString& Parameters)
     TArray<FMatchResult> ExtraResults;
     TestFalse(TEXT("A 23rd regular-season round is rejected"),
         FLeagueService::AdvanceCurrentRound(League, ExtraResults, Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTradeSystemTest,
+    "Underdog.Management.TradeSystem",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FTradeSystemTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+    const FGuid ClubId = League.Teams[0].TeamId;
+    const FGuid OpponentId = League.Teams[11].TeamId;
+
+    const FPlayerProfile& OutPlayer = League.Teams[0].Players[14];
+    const FPlayerProfile& InPlayer = League.Teams[11].Players[0];
+    const int32 OutValue = FTradeService::CalculatePlayerValue(OutPlayer,
+        League.Teams[0].PlayerStates[14]);
+    const int32 InValue = FTradeService::CalculatePlayerValue(InPlayer,
+        League.Teams[11].PlayerStates[0]);
+    TestTrue(TEXT("Player value is positive"), OutValue > 0 && InValue > 0);
+
+    const int32 ProposerRosterBefore = League.Teams[0].Players.Num();
+    const int32 ReceiverRosterBefore = League.Teams[11].Players.Num();
+
+    FString Error;
+    TArray<FGuid> Outgoing = { League.Teams[0].Players[13].PlayerId, League.Teams[0].Players[14].PlayerId };
+    TArray<FGuid> Incoming = { League.Teams[11].Players[14].PlayerId };
+
+    const bool bResult = FTradeService::ProposeTrade(League, ClubId, Outgoing, OpponentId, Incoming, Error);
+
+    if (bResult)
+    {
+        TestEqual(TEXT("Proposer roster adjusted"), League.Teams[0].Players.Num(), ProposerRosterBefore - 1);
+        TestEqual(TEXT("Receiver roster adjusted"), League.Teams[11].Players.Num(), ReceiverRosterBefore + 1);
+        TestTrue(TEXT("Trade recorded in history"), League.TradeHistory.Num() > 0);
+        TestEqual(TEXT("Trade status accepted"), League.TradeHistory.Last().Status, ETradeStatus::Accepted);
+    }
+    else
+    {
+        TestTrue(TEXT("Rejected trade recorded"), League.TradeHistory.Num() > 0);
+        TestEqual(TEXT("Trade status rejected"), League.TradeHistory.Last().Status, ETradeStatus::Rejected);
+    }
+
+    FString SelfError;
+    TestFalse(TEXT("Self-trade rejected"), FTradeService::ProposeTrade(League, ClubId,
+        { League.Teams[0].Players[0].PlayerId }, ClubId,
+        { League.Teams[0].Players[1].PlayerId }, SelfError));
+
+    League.CurrentRound = 18;
+    FString DeadlineError;
+    TestFalse(TEXT("Post-deadline trade rejected"), FTradeService::ProposeTrade(League, ClubId,
+        { League.Teams[0].Players[0].PlayerId }, OpponentId,
+        { League.Teams[11].Players[0].PlayerId }, DeadlineError));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayoffBracketTest,
+    "Underdog.Simulation.PlayoffBracket",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPlayoffBracketTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(42ULL);
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+    FString Error;
+    for (int32 Round = 0; Round < 22; ++Round)
+    {
+        TArray<FMatchResult> Results;
+        if (!FLeagueService::AdvanceCurrentRound(League, Results, Error))
+        {
+            AddError(FString::Printf(TEXT("Round %d failed: %s"), Round, *Error));
+            return false;
+        }
+    }
+    TestEqual(TEXT("Phase transitions to playoffs"), League.Phase, ESeasonPhase::Playoffs);
+    TestEqual(TEXT("Bracket has 4 first-round series"), League.Playoffs.Series.Num(), 4);
+
+    for (const FPlayoffSeries& Series : League.Playoffs.Series)
+    {
+        TestTrue(TEXT("Higher seed team valid"), Series.HigherSeedTeamId.IsValid());
+        TestTrue(TEXT("Lower seed team valid"), Series.LowerSeedTeamId.IsValid());
+        TestTrue(TEXT("Different teams"), Series.HigherSeedTeamId != Series.LowerSeedTeamId);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFullSeasonToChampionTest,
+    "Underdog.Simulation.FullSeasonToChampion",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFullSeasonToChampionTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(99ULL);
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+    FString Error;
+
+    for (int32 Round = 0; Round < 22; ++Round)
+    {
+        TArray<FMatchResult> Results;
+        if (!FLeagueService::AdvanceCurrentRound(League, Results, Error))
+        {
+            AddError(FString::Printf(TEXT("Regular season round %d failed: %s"), Round, *Error));
+            return false;
+        }
+    }
+    TestEqual(TEXT("Enters playoffs"), League.Phase, ESeasonPhase::Playoffs);
+
+    int32 PlayoffGames = 0;
+    while (League.Phase == ESeasonPhase::Playoffs && PlayoffGames < 100)
+    {
+        TArray<FMatchResult> Results;
+        if (!FLeagueService::AdvancePlayoffs(League, Results, Error))
+        {
+            AddError(FString::Printf(TEXT("Playoff game %d failed: %s"), PlayoffGames, *Error));
+            return false;
+        }
+        PlayoffGames += Results.Num();
+    }
+
+    TestEqual(TEXT("Season completes"), League.Phase, ESeasonPhase::Complete);
+    TestTrue(TEXT("Champion declared"), League.Playoffs.ChampionTeamId.IsValid());
+    TestTrue(TEXT("Playoffs took reasonable games"), PlayoffGames >= 12 && PlayoffGames <= 28);
+
+    const FTeamState* Champion = League.Teams.FindByPredicate(
+        [&League](const FTeamState& T) { return T.TeamId == League.Playoffs.ChampionTeamId; });
+    TestNotNull(TEXT("Champion team exists"), Champion);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAIManagerTest,
+    "Underdog.Management.AIManager",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAIManagerTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(20260627ULL);
+    const FGuid PlayerTeamId = League.Teams[0].TeamId;
+
+    FAIManagerService::ProcessRound(League, PlayerTeamId);
+
+    bool bAnyScoutAssigned = false;
+    for (const FScoutingAssignment& Assignment : League.ScoutingAssignments)
+    {
+        if (Assignment.RequestedByTeamId != PlayerTeamId)
+        {
+            bAnyScoutAssigned = true;
+            break;
+        }
+    }
+    TestTrue(TEXT("AI teams assigned scouts"), bAnyScoutAssigned);
+
+    bool bAnyTrainingChanged = false;
+    for (int32 Index = 1; Index < League.Teams.Num(); ++Index)
+    {
+        if (League.Teams[Index].TrainingPlan.Focus != ETrainingFocus::Balanced
+            || League.Teams[Index].TrainingPlan.Intensity != ETrainingIntensity::Normal)
+        {
+            bAnyTrainingChanged = true;
+            break;
+        }
+    }
+    TestTrue(TEXT("AI teams adjusted training"), bAnyTrainingChanged);
+
     return true;
 }
 

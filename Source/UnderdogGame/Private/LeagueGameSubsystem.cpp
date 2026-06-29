@@ -2,6 +2,7 @@
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
+#include "TradeService.h"
 #include "UnderdogSaveGame.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -10,6 +11,7 @@ bool ULeagueGameSubsystem::StartNewLeague(int64 Seed, FString& OutError)
     FLeagueState Generated = FLeagueGenerator::Generate(static_cast<uint64>(Seed));
     if (!FLeagueGenerator::ValidateLeague(Generated, OutError)) { return false; }
     League = MoveTemp(Generated);
+    if (League.Teams.Num() > 0) { FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId); }
     OnLeagueChanged.Broadcast();
     return true;
 }
@@ -55,6 +57,23 @@ bool ULeagueGameSubsystem::AssignScout(const FGuid& TeamId, const FGuid& PlayerI
     return true;
 }
 
+bool ULeagueGameSubsystem::ProposeTrade(const FGuid& ProposingTeamId,
+    const TArray<FGuid>& OutgoingPlayerIds, const FGuid& ReceivingTeamId,
+    const TArray<FGuid>& IncomingPlayerIds, FString& OutError)
+{
+    if (!FTradeService::ProposeTrade(League, ProposingTeamId, OutgoingPlayerIds,
+        ReceivingTeamId, IncomingPlayerIds, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::AdvancePlayoffs(TArray<FMatchResult>& OutResults, FString& OutError)
+{
+    if (!FLeagueService::AdvancePlayoffs(League, OutResults, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
 bool ULeagueGameSubsystem::SaveLeagueAsync(const FString& SlotName, FString& OutError)
 {
     if (bSaveInProgress) { OutError = TEXT("A save operation is already running."); return false; }
@@ -87,6 +106,7 @@ bool ULeagueGameSubsystem::LoadLeague(const FString& SlotName, FString& OutError
     }
     if (!FLeagueGenerator::ValidateLeague(Save->League, OutError)) { return false; }
     League = Save->League;
+    if (League.Teams.Num() > 0) { FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId); }
     OnLeagueChanged.Broadcast();
     return true;
 }

@@ -38,6 +38,12 @@ enum class EMatchEventType : uint8
     Steal, Block, Foul, Substitution, Timeout, PeriodEnded, OvertimeStarted, GameEnded
 };
 
+UENUM(BlueprintType)
+enum class ESeasonPhase : uint8 { RegularSeason, Playoffs, Complete };
+
+UENUM(BlueprintType)
+enum class ETradeStatus : uint8 { Pending, Accepted, Rejected, Expired };
+
 USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FPlayerRatings
 {
@@ -185,6 +191,54 @@ struct UNDERDOGCORE_API FScoutingReport
 };
 
 USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FTradeAsset
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid FromTeamId;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FTradeOffer
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TradeId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid ProposingTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid ReceivingTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FTradeAsset> Outgoing;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FTradeAsset> Incoming;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) ETradeStatus Status = ETradeStatus::Pending;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ProposedRound = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FPlayoffSeries
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid SeriesId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 BracketSlot = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PlayoffRound = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid HigherSeedTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid LowerSeedTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 HigherSeedWins = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 LowerSeedWins = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FGuid> GameIds;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bComplete = false;
+    FGuid GetWinnerId() const { return HigherSeedWins >= 4 ? HigherSeedTeamId : LowerSeedWins >= 4 ? LowerSeedTeamId : FGuid(); }
+    int32 GamesPlayed() const { return HigherSeedWins + LowerSeedWins; }
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FPlayoffBracket
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayoffSeries> Series;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid ChampionTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CurrentPlayoffRound = 0;
+    bool IsComplete() const { return ChampionTeamId.IsValid(); }
+};
+
+USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FLeagueState
 {
     GENERATED_BODY()
@@ -196,6 +250,10 @@ struct UNDERDOGCORE_API FLeagueState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FScheduledGame> Schedule;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FScoutingAssignment> ScoutingAssignments;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FScoutingReport> ScoutingReports;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) ESeasonPhase Phase = ESeasonPhase::RegularSeason;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TradeDeadlineRound = 16;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FTradeOffer> TradeHistory;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FPlayoffBracket Playoffs;
 };
 
 USTRUCT(BlueprintType)

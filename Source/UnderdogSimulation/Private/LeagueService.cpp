@@ -2,6 +2,10 @@
 #include "DeterministicRandom.h"
 #include "ManagementService.h"
 #include "MatchSimulator.h"
+#include "AIManagerService.h"
+#include "TradeService.h"
+
+FGuid FLeagueService::PlayerTeamId;
 
 bool FLeagueService::BuildSnapshot(
     const FLeagueState& League, const FScheduledGame& Game, FMatchSnapshot& OutSnapshot, FString& OutError)
@@ -106,8 +110,18 @@ bool FLeagueService::SimulateGame(FLeagueState& League, const FGuid& GameId, FMa
     return true;
 }
 
+void FLeagueService::SetPlayerTeamId(FLeagueState& League, const FGuid& TeamId)
+{
+    PlayerTeamId = TeamId;
+}
+
 bool FLeagueService::AdvanceCurrentRound(FLeagueState& League, TArray<FMatchResult>& OutResults, FString& OutError)
 {
+    if (League.Phase != ESeasonPhase::RegularSeason)
+    {
+        OutError = TEXT("The regular season is not active.");
+        return false;
+    }
     if (League.CurrentRound < 0 || League.CurrentRound >= 22)
     {
         OutError = TEXT("The regular season is complete.");
@@ -133,6 +147,17 @@ bool FLeagueService::AdvanceCurrentRound(FLeagueState& League, TArray<FMatchResu
     }
     CandidateLeague.CurrentRound++;
     FManagementService::ProcessRound(CandidateLeague);
+    FAIManagerService::ProcessRound(CandidateLeague, PlayerTeamId);
+    if (CandidateLeague.CurrentRound == CandidateLeague.TradeDeadlineRound)
+    {
+        FTradeService::ExpireDeadlineTrades(CandidateLeague);
+    }
+    if (CandidateLeague.CurrentRound >= 22)
+    {
+        CandidateLeague.Phase = ESeasonPhase::Playoffs;
+        FString PlayoffError;
+        GeneratePlayoffBracket(CandidateLeague, PlayoffError);
+    }
     League = MoveTemp(CandidateLeague);
     OutResults = MoveTemp(CandidateResults);
     return true;
@@ -168,4 +193,137 @@ TArray<FTeamState> FLeagueService::GetStandings(const FLeagueState& League)
         return A.TeamId.ToString() < B.TeamId.ToString();
     });
     return Standings;
+}
+
+bool FLeagueService::GeneratePlayoffBracket(FLeagueState& League, FString& OutError)
+{
+    const TArray<FTeamState> Standings = GetStandings(League);
+    if (Standings.Num() < 8)
+    {
+        OutError = TEXT("At least eight teams are required for playoffs.");
+        return false;
+    }
+
+    FDeterministicRandom Random(static_cast<uint64>(League.LeagueSeed) ^ 0x504C594F4646ULL);
+    League.Playoffs = FPlayoffBracket();
+    League.Playoffs.CurrentPlayoffRound = 0;
+
+    const int32 Matchups[4][2] = { {0, 7}, {3, 4}, {1, 6}, {2, 5} };
+    for (int32 Slot = 0; Slot < 4; ++Slot)
+    {
+        FPlayoffSeries Series;
+        Series.SeriesId = FGuid(Random.NextUInt32(), Random.NextUInt32(), Random.NextUInt32(), Random.NextUInt32());
+        Series.BracketSlot = Slot;
+        Series.PlayoffRound = 0;
+        Series.HigherSeedTeamId = Standings[Matchups[Slot][0]].TeamId;
+        Series.LowerSeedTeamId = Standings[Matchups[Slot][1]].TeamId;
+        League.Playoffs.Series.Add(Series);
+    }
+    return true;
+}
+
+bool FLeagueService::AdvancePlayoffs(FLeagueState& League, TArray<FMatchResult>& OutResults, FString& OutError)
+{
+    if (League.Phase != ESeasonPhase::Playoffs)
+    {
+        OutError = TEXT("The league is not in the playoff phase.");
+        return false;
+    }
+    if (League.Playoffs.IsComplete())
+    {
+        OutError = TEXT("The playoffs are already complete.");
+        return false;
+    }
+
+    FDeterministicRandom Random(static_cast<uint64>(League.LeagueSeed)
+        ^ (static_cast<uint64>(League.Playoffs.CurrentPlayoffRound) << 16)
+        ^ 0x504F535453ULL);
+
+    bool bAllCurrentRoundComplete = true;
+    for (FPlayoffSeries& Series : League.Playoffs.Series)
+    {
+        if (Series.PlayoffRound != League.Playoffs.CurrentPlayoffRound || Series.bComplete) { continue; }
+
+        const bool bHigherSeedHome = (Series.GamesPlayed() % 2 == 0);
+        const FGuid HomeId = bHigherSeedHome ? Series.HigherSeedTeamId : Series.LowerSeedTeamId;
+        const FGuid AwayId = bHigherSeedHome ? Series.LowerSeedTeamId : Series.HigherSeedTeamId;
+
+        FScheduledGame PlayoffGame;
+        PlayoffGame.GameId = FGuid(Random.NextUInt32(), Random.NextUInt32(), Random.NextUInt32(), Random.NextUInt32());
+        PlayoffGame.HomeTeamId = HomeId;
+        PlayoffGame.AwayTeamId = AwayId;
+        PlayoffGame.Round = 22 + League.Playoffs.CurrentPlayoffRound;
+        League.Schedule.Add(PlayoffGame);
+
+        FMatchResult Result;
+        if (!SimulateGame(League, PlayoffGame.GameId, Result, OutError)) { return false; }
+        OutResults.Add(Result);
+
+        Series.GameIds.Add(PlayoffGame.GameId);
+        if (Result.HomeScore > Result.AwayScore)
+        {
+            if (HomeId == Series.HigherSeedTeamId) { Series.HigherSeedWins++; }
+            else { Series.LowerSeedWins++; }
+        }
+        else
+        {
+            if (AwayId == Series.HigherSeedTeamId) { Series.HigherSeedWins++; }
+            else { Series.LowerSeedWins++; }
+        }
+
+        if (Series.HigherSeedWins >= 4 || Series.LowerSeedWins >= 4)
+        {
+            Series.bComplete = true;
+        }
+        else
+        {
+            bAllCurrentRoundComplete = false;
+        }
+    }
+
+    bool bStillActive = false;
+    for (const FPlayoffSeries& Series : League.Playoffs.Series)
+    {
+        if (Series.PlayoffRound == League.Playoffs.CurrentPlayoffRound && !Series.bComplete)
+        {
+            bStillActive = true;
+            break;
+        }
+    }
+
+    if (!bStillActive)
+    {
+        TArray<FGuid> Winners;
+        for (const FPlayoffSeries& Series : League.Playoffs.Series)
+        {
+            if (Series.PlayoffRound == League.Playoffs.CurrentPlayoffRound)
+            {
+                Winners.Add(Series.GetWinnerId());
+            }
+        }
+
+        if (Winners.Num() == 1)
+        {
+            League.Playoffs.ChampionTeamId = Winners[0];
+            League.Phase = ESeasonPhase::Complete;
+        }
+        else if (Winners.Num() >= 2)
+        {
+            League.Playoffs.CurrentPlayoffRound++;
+            for (int32 Index = 0; Index + 1 < Winners.Num(); Index += 2)
+            {
+                FPlayoffSeries NextSeries;
+                NextSeries.SeriesId = FGuid(Random.NextUInt32(), Random.NextUInt32(),
+                    Random.NextUInt32(), Random.NextUInt32());
+                NextSeries.BracketSlot = Index / 2;
+                NextSeries.PlayoffRound = League.Playoffs.CurrentPlayoffRound;
+                NextSeries.HigherSeedTeamId = Winners[Index];
+                NextSeries.LowerSeedTeamId = Winners[Index + 1];
+                League.Playoffs.Series.Add(NextSeries);
+            }
+        }
+    }
+
+    FManagementService::ProcessRound(League);
+    return true;
 }

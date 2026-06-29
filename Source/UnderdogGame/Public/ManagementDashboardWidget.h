@@ -11,6 +11,8 @@ class UVerticalBox;
 class UWidgetSwitcher;
 struct FLeagueState;
 struct FTeamState;
+struct FMatchResult;
+struct FPlayoffBracket;
 enum class ETrainingFocus : uint8;
 enum class ETrainingIntensity : uint8;
 
@@ -34,15 +36,21 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> RosterList;
     UPROPERTY() TObjectPtr<UVerticalBox> StandingsList;
     UPROPERTY() TObjectPtr<UButton> SimulateButton;
+    UPROPERTY() TObjectPtr<UTextBlock> SimulateButtonText;
     UPROPERTY() TObjectPtr<UWidgetSwitcher> ScreenSwitcher;
     UPROPERTY() TObjectPtr<UVerticalBox> RosterDetailList;
     UPROPERTY() TObjectPtr<UVerticalBox> ScheduleList;
     UPROPERTY() TObjectPtr<UVerticalBox> StandingsDetailList;
     UPROPERTY() TObjectPtr<UVerticalBox> ScoutingList;
     UPROPERTY() TObjectPtr<UVerticalBox> TrainingList;
+    UPROPERTY() TObjectPtr<UVerticalBox> TradeList;
+    UPROPERTY() TObjectPtr<UVerticalBox> PlayoffList;
+    UPROPERTY() TObjectPtr<UVerticalBox> ResultsList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
+    FGuid SelectedTradePlayerId;
+    FGuid SelectedTradeTeamId;
 
     void BuildLayout();
     void RefreshDashboard();
@@ -56,6 +64,9 @@ private:
     void RefreshStandingsScreen(const TArray<FTeamState>& Standings, const FGuid& ClubId);
     void RefreshScoutingScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshTrainingScreen(const FTeamState& Club);
+    void RefreshTradeScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshPlayoffScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshResultsScreen(const TArray<FMatchResult>& Results, const FLeagueState& League, const FTeamState& Club);
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
 
@@ -66,12 +77,17 @@ private:
     UFUNCTION() void ShowStandings();
     UFUNCTION() void ShowScouting();
     UFUNCTION() void ShowTraining();
+    UFUNCTION() void ShowTrades();
+    UFUNCTION() void ShowPlayoffs();
     UFUNCTION() void HandleAutoRotation();
     UFUNCTION() void HandleAssignScout();
+    UFUNCTION() void HandleProposeTrade();
     UFUNCTION() void SetTrainingBalanced();
     UFUNCTION() void SetTrainingShooting();
     UFUNCTION() void SetTrainingDefense();
     UFUNCTION() void SetTrainingConditioning();
     UFUNCTION() void SetTrainingRecovery();
     UFUNCTION() void SetTrainingHigh();
+
+    TArray<FMatchResult> LastRoundResults;
 };
