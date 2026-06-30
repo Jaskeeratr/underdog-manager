@@ -44,6 +44,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> NextOpponentText;
     UPROPERTY() TObjectPtr<UTextBlock> MatchupDetailsText;
     UPROPERTY() TObjectPtr<UTextBlock> StatusText;
+    UPROPERTY() TObjectPtr<UTextBlock> CurrentScreenText;
+    UPROPERTY() TObjectPtr<UTextBlock> GlobalSeasonText;
     UPROPERTY() TObjectPtr<UVerticalBox> RosterList;
     UPROPERTY() TObjectPtr<UVerticalBox> StandingsList;
     UPROPERTY() TObjectPtr<UButton> SimulateButton;
@@ -70,6 +72,10 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> FranchiseList;
     UPROPERTY() TObjectPtr<UVerticalBox> StaffList;
     UPROPERTY() TObjectPtr<UVerticalBox> CareerList;
+    UPROPERTY() TArray<TObjectPtr<UButton>> NavigationButtons;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> NavigationButtonLabels;
+    TArray<int32> NavigationScreenIndices;
+    TArray<FString> NavigationNames;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;

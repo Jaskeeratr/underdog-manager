@@ -34,11 +34,13 @@ namespace DashboardStyle
     const FLinearColor Sidebar(0.018f, 0.021f, 0.027f, 1.0f);
     const FLinearColor Card(0.031f, 0.035f, 0.043f, 1.0f);
     const FLinearColor CardRaised(0.052f, 0.057f, 0.068f, 1.0f);
+    const FLinearColor Stroke(0.105f, 0.115f, 0.135f, 1.0f);
     const FLinearColor Accent(0.94f, 0.10f, 0.16f, 1.0f);
     const FLinearColor AccentSoft(0.26f, 0.025f, 0.045f, 1.0f);
     const FLinearColor Primary(0.97f, 0.975f, 0.985f, 1.0f);
     const FLinearColor Secondary(0.58f, 0.61f, 0.67f, 1.0f);
     const FLinearColor Success(0.10f, 0.82f, 0.68f, 1.0f);
+    const FLinearColor Gold(0.96f, 0.72f, 0.22f, 1.0f);
 
     FSlateChildSize Size(float Value, ESlateSizeRule::Type Rule = ESlateSizeRule::Fill)
     {
@@ -80,7 +82,9 @@ UTextBlock* UManagementDashboardWidget::MakeText(
     UTextBlock* Widget = WidgetTree->ConstructWidget<UTextBlock>();
     Widget->SetText(FText::FromString(Text));
     Widget->SetColorAndOpacity(FSlateColor(Color));
-    Widget->SetFont(FCoreStyle::GetDefaultFontStyle(bBold ? TEXT("Bold") : TEXT("Regular"), Size));
+    const int32 AccessibleSize = Size <= 11 ? Size + 1 : Size;
+    Widget->SetFont(FCoreStyle::GetDefaultFontStyle(
+        bBold ? TEXT("Bold") : TEXT("Regular"), AccessibleSize));
     return Widget;
 }
 
@@ -96,11 +100,13 @@ UButton* UManagementDashboardWidget::MakeNavigationButton(const FString& Label, 
 {
     UButton* Button = WidgetTree->ConstructWidget<UButton>();
     Button->SetBackgroundColor(bActive ? DashboardStyle::AccentSoft : DashboardStyle::Sidebar);
-    UTextBlock* LabelText = MakeText(Label, 11,
+    UTextBlock* LabelText = MakeText(Label, 10,
         bActive ? DashboardStyle::Accent : DashboardStyle::Secondary, bActive);
     LabelText->SetJustification(ETextJustify::Left);
     Button->SetContent(LabelText);
     Button->SetToolTipText(FText::FromString(FString::Printf(TEXT("Open %s"), *Label)));
+    NavigationButtons.Add(Button);
+    NavigationButtonLabels.Add(LabelText);
     return Button;
 }
 
@@ -138,18 +144,45 @@ void UManagementDashboardWidget::BuildLayout()
     Sidebar->SetContent(NavigationScroll);
     UVerticalBox* NavigationBox = WidgetTree->ConstructWidget<UVerticalBox>();
     NavigationScroll->AddChild(NavigationBox);
-    NavigationBox->AddChildToVerticalBox(MakeText(TEXT("UNDERDOG"), 28, DashboardStyle::Primary, true));
-    NavigationBox->AddChildToVerticalBox(MakeText(TEXT("FRANCHISE COMMAND"), 9, DashboardStyle::Accent, true))
-        ->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 22.0f));
+    UHorizontalBox* Brand = WidgetTree->ConstructWidget<UHorizontalBox>();
+    NavigationBox->AddChildToVerticalBox(Brand)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 24.0f));
+    USizeBox* BrandMarkSize = WidgetTree->ConstructWidget<USizeBox>();
+    BrandMarkSize->SetWidthOverride(42.0f);
+    BrandMarkSize->SetHeightOverride(42.0f);
+    UBorder* BrandMark = MakeCard(DashboardStyle::Accent);
+    BrandMark->SetPadding(FMargin(0.0f));
+    UTextBlock* BrandLetter = MakeText(TEXT("U"), 22, DashboardStyle::Primary, true);
+    BrandLetter->SetJustification(ETextJustify::Center);
+    BrandMark->SetContent(BrandLetter);
+    BrandMarkSize->SetContent(BrandMark);
+    Brand->AddChildToHorizontalBox(BrandMarkSize)->SetVerticalAlignment(VAlign_Center);
+    UVerticalBox* BrandCopy = WidgetTree->ConstructWidget<UVerticalBox>();
+    Brand->AddChildToHorizontalBox(BrandCopy)->SetPadding(FMargin(12.0f, 0.0f, 0.0f, 0.0f));
+    BrandCopy->AddChildToVerticalBox(MakeText(TEXT("UNDERDOG"), 20, DashboardStyle::Primary, true));
+    BrandCopy->AddChildToVerticalBox(MakeText(TEXT("MANAGER"), 9, DashboardStyle::Accent, true));
 
     const FString Labels[] = { TEXT("OVERVIEW"), TEXT("ROSTER"), TEXT("SCHEDULE"),
         TEXT("STANDINGS"), TEXT("SCOUTING"), TEXT("TRAINING"), TEXT("TACTICS"),
         TEXT("TRADES"), TEXT("PLAYOFFS"), TEXT("AWARDS"), TEXT("OFFSEASON"), TEXT("SAVE / LOAD"),
         TEXT("GAME RECAP"), TEXT("HISTORY"), TEXT("CONTRACTS"), TEXT("RIVALRIES"), TEXT("FRONT OFFICE"),
         TEXT("STAFF & COACHING"), TEXT("MANAGER CAREER") };
+    const int32 ScreenIndices[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21 };
+    NavigationButtons.Reset();
+    NavigationButtonLabels.Reset();
+    NavigationScreenIndices.Reset();
+    NavigationNames.Reset();
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Labels); ++Index)
     {
+        if (Index == 0 || Index == 4 || Index == 8 || Index == 13 || Index == 16)
+        {
+            const TCHAR* Section = Index == 0 ? TEXT("CLUB") : Index == 4 ? TEXT("BASKETBALL")
+                : Index == 8 ? TEXT("SEASON") : Index == 13 ? TEXT("LEAGUE") : TEXT("ORGANIZATION");
+            NavigationBox->AddChildToVerticalBox(MakeText(Section, 8, DashboardStyle::Secondary, true))
+                ->SetPadding(FMargin(4.0f, Index == 0 ? 0.0f : 12.0f, 0.0f, 6.0f));
+        }
         UButton* NavigationButton = MakeNavigationButton(Labels[Index], Index == 0);
+        NavigationScreenIndices.Add(ScreenIndices[Index]);
+        NavigationNames.Add(Labels[Index]);
         switch (Index)
         {
         case 0: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowOverview); break;
@@ -176,18 +209,45 @@ void UManagementDashboardWidget::BuildLayout()
         NavigationBox->AddChildToVerticalBox(NavigationButton)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
     }
 
+    UVerticalBox* ContentColumn = WidgetTree->ConstructWidget<UVerticalBox>();
+    UHorizontalBoxSlot* ContentSlot = Shell->AddChildToHorizontalBox(ContentColumn);
+    ContentSlot->SetSize(DashboardStyle::Size(0.83f));
+
+    UBorder* UtilityBar = MakeCard(DashboardStyle::Sidebar);
+    UtilityBar->SetPadding(FMargin(30.0f, 14.0f, 34.0f, 14.0f));
+    UHorizontalBox* UtilityContent = WidgetTree->ConstructWidget<UHorizontalBox>();
+    UtilityBar->SetContent(UtilityContent);
+    CurrentScreenText = MakeText(TEXT("COMMAND CENTER  /  OVERVIEW"), 9, DashboardStyle::Secondary, true);
+    UtilityContent->AddChildToHorizontalBox(CurrentScreenText)->SetSize(DashboardStyle::Size(1.0f));
+    GlobalSeasonText = MakeText(TEXT("SEASON 1"), 9, DashboardStyle::Gold, true);
+    UtilityContent->AddChildToHorizontalBox(GlobalSeasonText)->SetSize(
+        DashboardStyle::Size(1.0f, ESlateSizeRule::Automatic));
+    ContentColumn->AddChildToVerticalBox(UtilityBar);
+
     ScreenSwitcher = WidgetTree->ConstructWidget<UWidgetSwitcher>();
-    UHorizontalBoxSlot* SwitcherSlot = Shell->AddChildToHorizontalBox(ScreenSwitcher);
-    SwitcherSlot->SetSize(DashboardStyle::Size(0.83f));
-    SwitcherSlot->SetPadding(FMargin(30.0f, 30.0f, 34.0f, 24.0f));
+    UVerticalBoxSlot* SwitcherSlot = ContentColumn->AddChildToVerticalBox(ScreenSwitcher);
+    SwitcherSlot->SetSize(DashboardStyle::Size(1.0f));
+    SwitcherSlot->SetPadding(FMargin(30.0f, 24.0f, 34.0f, 24.0f));
 
     UVerticalBox* Main = WidgetTree->ConstructWidget<UVerticalBox>();
     ScreenSwitcher->AddChild(Main);
 
     UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>();
     Main->AddChildToVerticalBox(Header)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 20.0f));
+    USizeBox* ClubMarkSize = WidgetTree->ConstructWidget<USizeBox>();
+    ClubMarkSize->SetWidthOverride(62.0f);
+    ClubMarkSize->SetHeightOverride(62.0f);
+    UBorder* ClubMark = MakeCard(DashboardStyle::AccentSoft);
+    ClubMark->SetPadding(FMargin(0.0f));
+    UTextBlock* ClubMonogram = MakeText(TEXT("UC"), 18, DashboardStyle::Accent, true);
+    ClubMonogram->SetJustification(ETextJustify::Center);
+    ClubMark->SetContent(ClubMonogram);
+    ClubMarkSize->SetContent(ClubMark);
+    Header->AddChildToHorizontalBox(ClubMarkSize)->SetVerticalAlignment(VAlign_Center);
     UVerticalBox* HeaderCopy = WidgetTree->ConstructWidget<UVerticalBox>();
-    Header->AddChildToHorizontalBox(HeaderCopy)->SetSize(DashboardStyle::Size(1.0f));
+    UHorizontalBoxSlot* HeaderCopySlot = Header->AddChildToHorizontalBox(HeaderCopy);
+    HeaderCopySlot->SetSize(DashboardStyle::Size(1.0f));
+    HeaderCopySlot->SetPadding(FMargin(16.0f, 0.0f, 0.0f, 0.0f));
     ClubNameText = MakeText(TEXT("CALGARY CHINOOKS"), 30, DashboardStyle::Primary, true);
     HeaderCopy->AddChildToVerticalBox(ClubNameText);
     SeasonText = MakeText(TEXT("REGULAR SEASON"), 11, DashboardStyle::Secondary, true);
@@ -314,7 +374,10 @@ UVerticalBox* UManagementDashboardWidget::MakeDetailScreen(const FString& Eyebro
     Screen->AddChildToVerticalBox(DescriptionText)->SetPadding(FMargin(0.0f, 6.0f, 0.0f, 22.0f));
     UBorder* ContentCard = MakeCard(DashboardStyle::Card);
     OutList = WidgetTree->ConstructWidget<UVerticalBox>();
-    ContentCard->SetContent(OutList);
+    UScrollBox* ContentScroll = WidgetTree->ConstructWidget<UScrollBox>();
+    ContentScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
+    ContentScroll->AddChild(OutList);
+    ContentCard->SetContent(ContentScroll);
     UVerticalBoxSlot* CardSlot = Screen->AddChildToVerticalBox(ContentCard);
     CardSlot->SetSize(DashboardStyle::Size(1.0f));
     return Screen;
@@ -337,6 +400,12 @@ void UManagementDashboardWidget::RefreshDashboard()
     const FLeagueState League = LeagueSubsystem->GetLeague();
     if (League.Teams.Num() == 0) { return; }
     const FTeamState& Club = League.Teams[0];
+    if (GlobalSeasonText)
+    {
+        GlobalSeasonText->SetText(FText::FromString(FString::Printf(
+            TEXT("SEASON %d   /   MANAGER REP %d"),
+            League.SeasonNumber, League.ManagerCareer.CareerScore)));
+    }
     ClubNameText->SetText(FText::FromString(FString::Printf(
         TEXT("%s %s"), *Club.City.ToUpper(), *Club.Nickname.ToUpper())));
     if (League.Phase == ESeasonPhase::Playoffs)
@@ -821,6 +890,28 @@ void UManagementDashboardWidget::RefreshTacticsScreen(const FTeamState& Club)
 void UManagementDashboardWidget::SetScreen(int32 Index)
 {
     if (ScreenSwitcher) { ScreenSwitcher->SetActiveWidgetIndex(Index); }
+    for (int32 NavIndex = 0; NavIndex < NavigationButtons.Num(); ++NavIndex)
+    {
+        const bool bActive = NavigationScreenIndices.IsValidIndex(NavIndex)
+            && NavigationScreenIndices[NavIndex] == Index;
+        if (NavigationButtons[NavIndex])
+        {
+            NavigationButtons[NavIndex]->SetBackgroundColor(
+                bActive ? DashboardStyle::AccentSoft : DashboardStyle::Sidebar);
+        }
+        if (NavigationButtonLabels.IsValidIndex(NavIndex) && NavigationButtonLabels[NavIndex])
+        {
+            NavigationButtonLabels[NavIndex]->SetColorAndOpacity(FSlateColor(
+                bActive ? DashboardStyle::Accent : DashboardStyle::Secondary));
+            NavigationButtonLabels[NavIndex]->SetFont(FCoreStyle::GetDefaultFontStyle(
+                bActive ? TEXT("Bold") : TEXT("Regular"), 11));
+        }
+        if (bActive && CurrentScreenText && NavigationNames.IsValidIndex(NavIndex))
+        {
+            CurrentScreenText->SetText(FText::FromString(FString::Printf(
+                TEXT("COMMAND CENTER  /  %s"), *NavigationNames[NavIndex])));
+        }
+    }
 }
 
 void UManagementDashboardWidget::ShowOverview() { SetScreen(0); }
