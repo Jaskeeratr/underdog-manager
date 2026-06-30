@@ -71,6 +71,12 @@ void FLeagueService::ApplyPlayerConsequences(
         if (Minutes > 0 && Random.ChancePerTenThousand(InjuryRisk))
         {
             State.InjuryGamesRemaining = Random.Range(1, State.Fatigue > 75 ? 5 : 3);
+            const TCHAR* InjuryTypes[] = {
+                TEXT("Ankle Sprain"), TEXT("Knee Soreness"), TEXT("Hamstring Strain"),
+                TEXT("Groin Tightness"), TEXT("Calf Strain"), TEXT("Back Spasms"),
+                TEXT("Shoulder Strain"), TEXT("Hip Flexor"), TEXT("Quad Contusion"),
+                TEXT("Wrist Sprain"), TEXT("Concussion Protocol"), TEXT("Foot Soreness") };
+            State.InjuryDescription = InjuryTypes[Random.Range(0, UE_ARRAY_COUNT(InjuryTypes) - 1)];
         }
     }
 }

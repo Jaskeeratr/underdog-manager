@@ -166,3 +166,22 @@ bool ULeagueGameSubsystem::LoadLeague(const FString& SlotName, FString& OutError
     OnLeagueChanged.Broadcast();
     return true;
 }
+
+bool ULeagueGameSubsystem::DeleteSaveSlot(const FString& SlotName)
+{
+    return UGameplayStatics::DeleteGameInSlot(SlotName, 0);
+}
+
+bool ULeagueGameSubsystem::GetSaveSlotInfo(const FString& SlotName,
+    int32& OutSeason, int32& OutRound, FString& OutTeamName, FDateTime& OutSavedAt) const
+{
+    if (!UGameplayStatics::DoesSaveGameExist(SlotName, 0)) { return false; }
+    UUnderdogSaveGame* Save = Cast<UUnderdogSaveGame>(UGameplayStatics::LoadGameFromSlot(SlotName, 0));
+    if (!Save) { return false; }
+    OutSeason = Save->League.SeasonNumber;
+    OutRound = Save->League.CurrentRound;
+    OutTeamName = Save->League.Teams.Num() > 0
+        ? Save->League.Teams[0].City + TEXT(" ") + Save->League.Teams[0].Nickname : TEXT("Unknown");
+    OutSavedAt = Save->SavedAtUtc;
+    return true;
+}

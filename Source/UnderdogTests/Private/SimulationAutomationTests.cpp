@@ -12,6 +12,7 @@
 #include "OffseasonService.h"
 #include "TradeService.h"
 #include "AIManagerService.h"
+#include "UnderdogSaveGame.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -858,6 +859,145 @@ bool FMultiSeasonWithFATest::RunTest(const FString& Parameters)
     FString LeagueError;
     TestTrue(TEXT("League validates after 2 seasons"), FLeagueGenerator::ValidateLeague(League, LeagueError));
 
+    return true;
+}
+
+// ── Phase 4 Tests ──────────────────────────────────────────────────────
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerDraftPickTest,
+    "Underdog.Phase4.PlayerDraftPick",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPlayerDraftPickTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(550055ULL);
+    FString Error;
+
+    League.Phase = ESeasonPhase::RegularSeason;
+    League.CurrentRound = League.Schedule.Num();
+    FLeagueService::StartPlayoffs(League, Error);
+    for (int32 R = 0; R < 40; ++R) { FLeagueService::AdvancePlayoffs(League, Error); }
+    FOffseasonService::StartOffseason(League, Error);
+
+    while (League.Offseason.CurrentStep != EOffseasonStep::Draft)
+    {
+        FOffseasonService::AdvanceOffseason(League, Error);
+        if (League.Phase != ESeasonPhase::Offseason) { break; }
+    }
+    if (League.Offseason.CurrentStep != EOffseasonStep::Draft)
+    {
+        AddWarning(TEXT("Could not reach Draft step — skipping"));
+        return true;
+    }
+
+    const FGuid& PlayerTeam = League.Teams[0].TeamId;
+    int32 UndraftedIdx = INDEX_NONE;
+    for (int32 I = 0; I < League.Offseason.DraftClass.Num(); ++I)
+    {
+        if (!League.Offseason.DraftClass[I].bDrafted) { UndraftedIdx = I; break; }
+    }
+    TestTrue(TEXT("Undrafted prospect exists"), UndraftedIdx != INDEX_NONE);
+
+    const FString ProspectName = League.Offseason.DraftClass[UndraftedIdx].Profile.DisplayName;
+    TestTrue(TEXT("DraftPlayer succeeds"), FOffseasonService::DraftPlayer(League, PlayerTeam, UndraftedIdx, Error));
+    TestTrue(TEXT("Prospect marked drafted"), League.Offseason.DraftClass[UndraftedIdx].bDrafted);
+    TestTrue(TEXT("Prospect assigned to team"), League.Offseason.DraftClass[UndraftedIdx].DraftedByTeamId == PlayerTeam);
+
+    bool bFoundOnRoster = false;
+    for (const FAthleteState& P : League.Teams[0].Players)
+    {
+        if (P.Profile.DisplayName == ProspectName) { bFoundOnRoster = true; break; }
+    }
+    TestTrue(TEXT("Drafted player on team roster"), bFoundOnRoster);
+
+    TestFalse(TEXT("Cannot draft same prospect again"), FOffseasonService::DraftPlayer(League, PlayerTeam, UndraftedIdx, Error));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultiPlayerTradeTest,
+    "Underdog.Phase4.MultiPlayerTrade",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FMultiPlayerTradeTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(660066ULL);
+    FString Error;
+
+    const FGuid& Team0 = League.Teams[0].TeamId;
+    const FGuid& Team1 = League.Teams[1].TeamId;
+
+    TArray<FGuid> Outgoing;
+    Outgoing.Add(League.Teams[0].Players[0].PlayerId);
+    Outgoing.Add(League.Teams[0].Players[1].PlayerId);
+
+    TArray<FGuid> Incoming;
+    Incoming.Add(League.Teams[1].Players[0].PlayerId);
+    Incoming.Add(League.Teams[1].Players[1].PlayerId);
+
+    const FString OutName0 = League.Teams[0].Players[0].Profile.DisplayName;
+    const FString OutName1 = League.Teams[0].Players[1].Profile.DisplayName;
+    const FString InName0 = League.Teams[1].Players[0].Profile.DisplayName;
+    const FString InName1 = League.Teams[1].Players[1].Profile.DisplayName;
+
+    int32 Team0CountBefore = League.Teams[0].Players.Num();
+    int32 Team1CountBefore = League.Teams[1].Players.Num();
+
+    TestTrue(TEXT("Multi-player trade succeeds"), FTradeService::ProposeTrade(League, Team0, Outgoing, Team1, Incoming, Error));
+
+    TestEqual(TEXT("Team 0 roster count preserved"), League.Teams[0].Players.Num(), Team0CountBefore);
+    TestEqual(TEXT("Team 1 roster count preserved"), League.Teams[1].Players.Num(), Team1CountBefore);
+
+    auto FindOnTeam = [](const FTeamState& Team, const FString& Name) -> bool {
+        for (const FAthleteState& P : Team.Players) { if (P.Profile.DisplayName == Name) return true; }
+        return false;
+    };
+
+    TestTrue(TEXT("Incoming player 0 on team 0"), FindOnTeam(League.Teams[0], InName0));
+    TestTrue(TEXT("Incoming player 1 on team 0"), FindOnTeam(League.Teams[0], InName1));
+    TestTrue(TEXT("Outgoing player 0 on team 1"), FindOnTeam(League.Teams[1], OutName0));
+    TestTrue(TEXT("Outgoing player 1 on team 1"), FindOnTeam(League.Teams[1], OutName1));
+
+    TestTrue(TEXT("Trade recorded in history"), League.TradeHistory.Num() > 0);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInjuryReportTest,
+    "Underdog.Phase4.InjuryReport",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FInjuryReportTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(770077ULL);
+
+    League.Teams[0].Players[0].InjuryGamesRemaining = 3;
+    League.Teams[0].Players[0].InjuryDescription = TEXT("Ankle Sprain");
+
+    TestEqual(TEXT("Injury games remaining set"), League.Teams[0].Players[0].InjuryGamesRemaining, 3);
+    TestEqual(TEXT("Injury description set"), League.Teams[0].Players[0].InjuryDescription, FString(TEXT("Ankle Sprain")));
+
+    FString Error;
+    TArray<FMatchResult> Results;
+    FLeagueService::AdvanceCurrentRound(League, Results, Error);
+
+    TestTrue(TEXT("Injury decremented after round"), League.Teams[0].Players[0].InjuryGamesRemaining < 3);
+
+    League.Teams[0].Players[1].InjuryGamesRemaining = 0;
+    League.Teams[0].Players[1].InjuryDescription = TEXT("");
+    TestEqual(TEXT("Healthy player has zero injury games"), League.Teams[0].Players[1].InjuryGamesRemaining, 0);
+    TestTrue(TEXT("Healthy player has empty injury description"), League.Teams[0].Players[1].InjuryDescription.IsEmpty());
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveSchemaVersionTest,
+    "Underdog.Phase4.SaveSchemaVersion",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSaveSchemaVersionTest::RunTest(const FString& Parameters)
+{
+    TestEqual(TEXT("Schema version is 4"), UUnderdogSaveGame::CurrentSchemaVersion, 4);
     return true;
 }
 

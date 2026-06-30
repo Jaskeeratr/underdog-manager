@@ -102,6 +102,7 @@ struct UNDERDOGCORE_API FAthleteState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Fatigue = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Morale = 50;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 InjuryGamesRemaining = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString InjuryDescription;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RecentForm = 50;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SeasonDevelopment = 0;
 };

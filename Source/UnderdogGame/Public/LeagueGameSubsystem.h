@@ -50,6 +50,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Underdog|Chemistry") TArray<FMentorship> GetMentorships() const { return League.Mentorships; }
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool DeleteSaveSlot(const FString& SlotName);
+    UFUNCTION(BlueprintPure, Category="Underdog|Save") bool GetSaveSlotInfo(const FString& SlotName,
+        int32& OutSeason, int32& OutRound, FString& OutTeamName, FDateTime& OutSavedAt) const;
     UFUNCTION(BlueprintPure, Category="Underdog|League") bool HasLeague() const { return League.Teams.Num() > 0; }
 
 private:

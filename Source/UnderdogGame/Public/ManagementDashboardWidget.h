@@ -56,11 +56,19 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> AwardsList;
     UPROPERTY() TObjectPtr<UVerticalBox> OffseasonList;
     UPROPERTY() TObjectPtr<UVerticalBox> TacticsList;
+    UPROPERTY() TObjectPtr<UVerticalBox> SaveLoadList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
-    FGuid SelectedTradePlayerId;
+
     FGuid SelectedTradeTeamId;
+    TArray<FGuid> TradeOutgoingPlayerIds;
+    TArray<FGuid> TradeIncomingPlayerIds;
+    TArray<FGuid> DisplayedOutgoingIds;
+    TArray<FGuid> DisplayedIncomingIds;
+    TArray<FGuid> DisplayedTeamIds;
+
+    TArray<int32> DisplayedDraftIndices;
 
     void BuildLayout();
     void RefreshDashboard();
@@ -80,9 +88,16 @@ private:
     void RefreshResultsScreen(const TArray<FMatchResult>& Results, const FLeagueState& League, const FTeamState& Club);
     void RefreshAwardsScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshOffseasonScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshSaveLoadScreen();
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
     void ApplyTactics(EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding);
+    void DraftProspectAtSlot(int32 Slot);
+    void SelectTradeTeamAtSlot(int32 Slot);
+    void ToggleTradeOutgoingAtSlot(int32 Slot);
+    void ToggleTradeIncomingAtSlot(int32 Slot);
+    void SaveToSlot(int32 Slot);
+    void LoadFromSlot(int32 Slot);
 
     UFUNCTION() void HandleSimulateRound();
     UFUNCTION() void ShowOverview();
@@ -96,8 +111,11 @@ private:
     UFUNCTION() void ShowTactics();
     UFUNCTION() void ShowAwards();
     UFUNCTION() void ShowOffseason();
+    UFUNCTION() void ShowSaveLoad();
     UFUNCTION() void HandleAdvanceOffseason();
     UFUNCTION() void HandleSignFreeAgent();
+    UFUNCTION() void HandleBuildTrade();
+    UFUNCTION() void HandleClearTrade();
     UFUNCTION() void SetTacticsPaceSlow();
     UFUNCTION() void SetTacticsPaceBalanced();
     UFUNCTION() void SetTacticsPaceFast();
@@ -119,6 +137,44 @@ private:
     UFUNCTION() void SetTrainingConditioning();
     UFUNCTION() void SetTrainingRecovery();
     UFUNCTION() void SetTrainingHigh();
+    UFUNCTION() void HandleDraft0();
+    UFUNCTION() void HandleDraft1();
+    UFUNCTION() void HandleDraft2();
+    UFUNCTION() void HandleDraft3();
+    UFUNCTION() void HandleDraft4();
+    UFUNCTION() void HandleDraft5();
+    UFUNCTION() void HandleDraft6();
+    UFUNCTION() void HandleDraft7();
+    UFUNCTION() void HandleTeam0();
+    UFUNCTION() void HandleTeam1();
+    UFUNCTION() void HandleTeam2();
+    UFUNCTION() void HandleTeam3();
+    UFUNCTION() void HandleTeam4();
+    UFUNCTION() void HandleTeam5();
+    UFUNCTION() void HandleTeam6();
+    UFUNCTION() void HandleTeam7();
+    UFUNCTION() void HandleOut0();
+    UFUNCTION() void HandleOut1();
+    UFUNCTION() void HandleOut2();
+    UFUNCTION() void HandleOut3();
+    UFUNCTION() void HandleOut4();
+    UFUNCTION() void HandleOut5();
+    UFUNCTION() void HandleOut6();
+    UFUNCTION() void HandleOut7();
+    UFUNCTION() void HandleIn0();
+    UFUNCTION() void HandleIn1();
+    UFUNCTION() void HandleIn2();
+    UFUNCTION() void HandleIn3();
+    UFUNCTION() void HandleIn4();
+    UFUNCTION() void HandleIn5();
+    UFUNCTION() void HandleIn6();
+    UFUNCTION() void HandleIn7();
+    UFUNCTION() void HandleSaveSlot0();
+    UFUNCTION() void HandleSaveSlot1();
+    UFUNCTION() void HandleSaveSlot2();
+    UFUNCTION() void HandleLoadSlot0();
+    UFUNCTION() void HandleLoadSlot1();
+    UFUNCTION() void HandleLoadSlot2();
 
     TArray<FMatchResult> LastRoundResults;
     TArray<FMatchSnapshot> LastRoundSnapshots;
