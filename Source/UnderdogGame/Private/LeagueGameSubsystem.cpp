@@ -2,6 +2,8 @@
 #include "ContractService.h"
 #include "FreeAgencyService.h"
 #include "GameRecapService.h"
+#include "HighlightDirectorService.h"
+#include "MatchPresentationService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
@@ -148,6 +150,35 @@ TArray<FExtensionOffer> ULeagueGameSubsystem::GetEligibleExtensions(const FGuid&
 FGameRecap ULeagueGameSubsystem::BuildGameRecap(const FMatchResult& Result, const FMatchSnapshot& Snapshot) const
 {
     return FGameRecapService::BuildRecap(Result, Snapshot);
+}
+
+FMatchPresentationPackage ULeagueGameSubsystem::BuildPresentationPackage(
+    const FMatchResult& Result, const FMatchSnapshot& Snapshot) const
+{
+    FGameRecap Recap = FGameRecapService::BuildRecap(Result, Snapshot);
+    return FMatchPresentationService::BuildPackage(League, Result, Snapshot, Recap);
+}
+
+FMatchPresentationPackage ULeagueGameSubsystem::SimulateAndBuildPresentation(
+    const FGuid& GameId, FString& OutError)
+{
+    FMatchResult Result;
+    if (!FLeagueService::SimulateGame(League, GameId, Result, OutError))
+    {
+        return FMatchPresentationPackage();
+    }
+
+    const FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [&GameId](const FScheduledGame& G) { return G.GameId == GameId; });
+
+    FMatchSnapshot Snapshot;
+    if (Game)
+    {
+        FLeagueService::BuildSnapshot(League, *Game, Snapshot, OutError);
+    }
+
+    OnLeagueChanged.Broadcast();
+    return BuildPresentationPackage(Result, Snapshot);
 }
 
 bool ULeagueGameSubsystem::SaveLeagueAsync(const FString& SlotName, FString& OutError)

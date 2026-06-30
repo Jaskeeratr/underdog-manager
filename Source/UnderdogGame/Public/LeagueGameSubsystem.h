@@ -54,6 +54,8 @@ public:
         const FGuid& PlayerId, int64 OfferedSalary, int32 OfferedYears, FString& OutError);
     UFUNCTION(BlueprintPure, Category="Underdog|Contract") TArray<FExtensionOffer> GetEligibleExtensions(const FGuid& TeamId) const;
     FGameRecap BuildGameRecap(const FMatchResult& Result, const FMatchSnapshot& Snapshot) const;
+    FMatchPresentationPackage BuildPresentationPackage(const FMatchResult& Result, const FMatchSnapshot& Snapshot) const;
+    FMatchPresentationPackage SimulateAndBuildPresentation(const FGuid& GameId, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool DeleteSaveSlot(const FString& SlotName);

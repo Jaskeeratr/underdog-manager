@@ -16,6 +16,8 @@
 #include "GameRecapService.h"
 #include "LeagueHistoryService.h"
 #include "RivalryService.h"
+#include "HighlightDirectorService.h"
+#include "MatchPresentationService.h"
 #include "UnderdogSaveGame.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1173,6 +1175,144 @@ bool FRivalryMoraleBonusTest::RunTest(const FString& Parameters)
     const int32 Bonus = FRivalryService::GetMoraleBonus(League, Team0, Team1);
     TestTrue(TEXT("Strong rivalry gives morale bonus"), Bonus > 0);
 
+    return true;
+}
+
+// ── Phase 6: Highlight Director ──
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHighlightDirectorTest,
+    "Underdog.Simulation.HighlightDirector",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FHighlightDirectorTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(770011ULL);
+    FString Error;
+    TestTrue(TEXT("League valid"), FLeagueGenerator::ValidateLeague(League, Error));
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+
+    TArray<FMatchResult> Results;
+    TestTrue(TEXT("Round advanced"), FLeagueService::AdvanceCurrentRound(League, Results, Error));
+    TestTrue(TEXT("Results exist"), Results.Num() > 0);
+
+    const FMatchResult& Result = Results[0];
+    const FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [&Result](const FScheduledGame& G) { return G.GameId == Result.GameId; });
+    TestTrue(TEXT("Game found"), Game != nullptr);
+
+    FMatchSnapshot Snapshot;
+    TestTrue(TEXT("Snapshot built"), FLeagueService::BuildSnapshot(League, *Game, Snapshot, Error));
+
+    TArray<FHighlightCue> Cues = FHighlightDirectorService::BuildHighlights(Result, Snapshot);
+    TestTrue(TEXT("At least one highlight cue"), Cues.Num() > 0);
+    TestTrue(TEXT("Capped at 10"), Cues.Num() <= 10);
+
+    for (int32 I = 1; I < Cues.Num(); ++I)
+    {
+        const bool bChronological = Cues[I].Period > Cues[I - 1].Period ||
+            (Cues[I].Period == Cues[I - 1].Period && Cues[I].ClockSeconds <= Cues[I - 1].ClockSeconds);
+        TestTrue(TEXT("Cues chronological"), bChronological);
+    }
+
+    FString ValidationError;
+    TestTrue(TEXT("Cues pass validation"), FHighlightDirectorService::ValidateCues(Cues, Result, ValidationError));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHighlightFallbackTest,
+    "Underdog.Simulation.HighlightFallback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FHighlightFallbackTest::RunTest(const FString& Parameters)
+{
+    FMatchResult EmptyResult;
+    EmptyResult.GameId = FGuid::NewGuid();
+    EmptyResult.HomeScore = 100;
+    EmptyResult.AwayScore = 95;
+
+    FMatchSnapshot EmptySnapshot;
+    EmptySnapshot.HomeTeam.TeamId = FGuid::NewGuid();
+    EmptySnapshot.AwayTeam.TeamId = FGuid::NewGuid();
+
+    TArray<FHighlightCue> Cues = FHighlightDirectorService::BuildHighlights(EmptyResult, EmptySnapshot);
+    TestTrue(TEXT("Fallback cue generated"), Cues.Num() >= 1);
+    TestEqual(TEXT("Fallback template"), Cues[0].Template, EHighlightTemplate::GenericFallback);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPresentationPackageTest,
+    "Underdog.Simulation.PresentationPackage",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPresentationPackageTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(880022ULL);
+    FString Error;
+    TestTrue(TEXT("League valid"), FLeagueGenerator::ValidateLeague(League, Error));
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+
+    TArray<FMatchResult> Results;
+    TestTrue(TEXT("Round advanced"), FLeagueService::AdvanceCurrentRound(League, Results, Error));
+
+    const FMatchResult& Result = Results[0];
+    const FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [&Result](const FScheduledGame& G) { return G.GameId == Result.GameId; });
+    TestTrue(TEXT("Game found"), Game != nullptr);
+
+    FMatchSnapshot Snapshot;
+    TestTrue(TEXT("Snapshot built"), FLeagueService::BuildSnapshot(League, *Game, Snapshot, Error));
+
+    FGameRecap Recap = FGameRecapService::BuildRecap(Result, Snapshot);
+    FMatchPresentationPackage Pkg = FMatchPresentationService::BuildPackage(League, Result, Snapshot, Recap);
+
+    TestTrue(TEXT("Package GameId set"), Pkg.GameId == Result.GameId);
+    TestTrue(TEXT("Home team data populated"), !Pkg.Home.FullName.IsEmpty());
+    TestTrue(TEXT("Away team data populated"), !Pkg.Away.FullName.IsEmpty());
+    TestTrue(TEXT("Highlights present"), Pkg.Highlights.Num() > 0);
+    TestTrue(TEXT("Result scores match"), Pkg.Result.HomeScore == Result.HomeScore && Pkg.Result.AwayScore == Result.AwayScore);
+    TestTrue(TEXT("Recap headline present"), !Pkg.Recap.Headline.IsEmpty());
+    TestTrue(TEXT("Starting five populated"), Pkg.Home.StartingFive.Num() > 0);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStandingsImplicationTest,
+    "Underdog.Simulation.StandingsImplication",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStandingsImplicationTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(990033ULL);
+    FString Error;
+    FLeagueGenerator::ValidateLeague(League, Error);
+
+    League.Teams[0].WinStreak = 6;
+    FString Impl = FMatchPresentationService::ComputeStandingsImplication(
+        League, League.Teams[0].TeamId, League.Teams[1].TeamId);
+    TestTrue(TEXT("Win streak mentioned"), Impl.Contains(TEXT("streak")));
+
+    League.Teams[0].WinStreak = 0;
+    League.CurrentRound = 20;
+    League.Teams[0].Wins = 15;
+    League.Teams[0].Losses = 5;
+    League.Teams[1].Wins = 14;
+    League.Teams[1].Losses = 6;
+    Impl = FMatchPresentationService::ComputeStandingsImplication(
+        League, League.Teams[0].TeamId, League.Teams[1].TeamId);
+    TestTrue(TEXT("Playoff positioning noted"), Impl.Contains(TEXT("Playoff")) || Impl.Contains(TEXT("playoff")));
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveSchemaV6Test,
+    "Underdog.Game.SaveSchemaV6",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSaveSchemaV6Test::RunTest(const FString& Parameters)
+{
+    TestEqual(TEXT("Schema version is 6"), UUnderdogSaveGame::CurrentSchemaVersion, 6);
     return true;
 }
 

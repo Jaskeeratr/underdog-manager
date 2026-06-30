@@ -329,6 +329,75 @@ struct UNDERDOGCORE_API FOffseasonState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CurrentDraftPick = 0;
 };
 
+UENUM(BlueprintType)
+enum class EHighlightTemplate : uint8
+{
+    ThreePointer, DriveAndFinish, AssistedBasket, BlockPlay,
+    StealFastBreak, FreeThrows, ClutchBasket, FinalPossession, GenericFallback
+};
+
+UENUM(BlueprintType)
+enum class ECameraPreset : uint8
+{
+    Wide, Baseline, FollowBall, CloseUp, HighAngle, ReverseAngle, Broadcast
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FHighlightCue
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EHighlightTemplate Template = EHighlightTemplate::GenericFallback;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) ECameraPreset Camera = ECameraPreset::Broadcast;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Period = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ClockSeconds = 720;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 HomeScoreBefore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 AwayScoreBefore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 HomeScoreAfter = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 AwayScoreAfter = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PossessionTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PrimaryPlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid SecondaryPlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString PrimaryPlayerName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString SecondaryPlayerName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Description;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Importance = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) float PlaybackDuration = 4.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bOutcome = true;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FTeamPresentationData
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString City;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Nickname;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString FullName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Wins = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Losses = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 WinStreak = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Chemistry = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayerProfile> StartingFive;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamTactics Tactics;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FString> InjuredPlayers;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RivalryIntensity = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FMatchPresentationPackage
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid GameId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamPresentationData Home;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamPresentationData Away;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FHighlightCue> Highlights;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FMatchResult Result;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGameRecap Recap;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RivalryIntensity = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bPlayoffGame = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString StandingsImplication;
+};
+
 USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FQuarterScore
 {

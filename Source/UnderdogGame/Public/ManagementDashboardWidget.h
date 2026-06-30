@@ -15,6 +15,7 @@ struct FMatchResult;
 struct FMatchSnapshot;
 struct FPlayoffBracket;
 struct FSeasonAward;
+struct FMatchPresentationPackage;
 enum class ETrainingFocus : uint8;
 enum class ETrainingIntensity : uint8;
 enum class EPaceStyle : uint8;
@@ -61,6 +62,8 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> HistoryList;
     UPROPERTY() TObjectPtr<UVerticalBox> ContractsList;
     UPROPERTY() TObjectPtr<UVerticalBox> RivalriesList;
+    UPROPERTY() TObjectPtr<UVerticalBox> MatchCenterList;
+    UPROPERTY() TObjectPtr<UVerticalBox> PostGameList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
@@ -74,6 +77,8 @@ private:
 
     TArray<int32> DisplayedDraftIndices;
     TArray<FGuid> DisplayedExtensionPlayerIds;
+    FGuid PendingMatchGameId;
+    FMatchPresentationPackage LastPresentation;
 
     void BuildLayout();
     void RefreshDashboard();
@@ -99,6 +104,8 @@ private:
     void RefreshContractsScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshRivalriesScreen(const FLeagueState& League, const FTeamState& Club);
     void OfferExtensionAtSlot(int32 Slot);
+    void RefreshMatchCenterScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshPostGameScreen();
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
     void ApplyTactics(EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding);
@@ -108,6 +115,7 @@ private:
     void ToggleTradeIncomingAtSlot(int32 Slot);
     void SaveToSlot(int32 Slot);
     void LoadFromSlot(int32 Slot);
+    void ExecuteSimulateRound();
 
     UFUNCTION() void HandleSimulateRound();
     UFUNCTION() void ShowOverview();
@@ -126,6 +134,10 @@ private:
     UFUNCTION() void ShowHistory();
     UFUNCTION() void ShowContracts();
     UFUNCTION() void ShowRivalries();
+    UFUNCTION() void ShowMatchCenter();
+    UFUNCTION() void ShowPostGame();
+    UFUNCTION() void HandleWatchHighlights();
+    UFUNCTION() void HandleInstantResult();
     UFUNCTION() void HandleAdvanceOffseason();
     UFUNCTION() void HandleSignFreeAgent();
     UFUNCTION() void HandleBuildTrade();

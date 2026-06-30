@@ -3,8 +3,10 @@
 #include "CommentaryService.h"
 #include "ContractService.h"
 #include "GameRecapService.h"
+#include "HighlightDirectorService.h"
 #include "LeagueGameSubsystem.h"
 #include "LeagueHistoryService.h"
+#include "MatchPresentationService.h"
 #include "RivalryService.h"
 #include "LeagueService.h"
 #include "UnderdogCoreTypes.h"
@@ -266,6 +268,10 @@ void UManagementDashboardWidget::BuildLayout()
         TEXT("Negotiate extensions with players approaching free agency."), ContractsList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("COMPETITION"), TEXT("Rivalries"),
         TEXT("Teams that have clashed in close games and playoff battles."), RivalriesList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("MATCH DAY"), TEXT("Match Center"),
+        TEXT("Pre-game analysis. Choose to watch highlights or get the instant result."), MatchCenterList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("POST-GAME"), TEXT("Recap"),
+        TEXT("Full box score, highlight reel, and quarter-by-quarter breakdown."), PostGameList));
 }
 
 UVerticalBox* UManagementDashboardWidget::MakeDetailScreen(const FString& Eyebrow, const FString& Title,
@@ -467,6 +473,8 @@ void UManagementDashboardWidget::RefreshDashboard()
     RefreshHistoryScreen(League);
     RefreshContractsScreen(League, Club);
     RefreshRivalriesScreen(League, Club);
+    RefreshMatchCenterScreen(League, Club);
+    RefreshPostGameScreen();
 }
 
 void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League, const FTeamState& Club)
@@ -800,6 +808,8 @@ void UManagementDashboardWidget::ShowGameRecap() { SetScreen(13); }
 void UManagementDashboardWidget::ShowHistory() { SetScreen(14); }
 void UManagementDashboardWidget::ShowContracts() { SetScreen(15); }
 void UManagementDashboardWidget::ShowRivalries() { SetScreen(16); }
+void UManagementDashboardWidget::ShowMatchCenter() { SetScreen(17); }
+void UManagementDashboardWidget::ShowPostGame() { SetScreen(18); }
 
 void UManagementDashboardWidget::HandleAutoRotation()
 {
@@ -1342,6 +1352,43 @@ void UManagementDashboardWidget::HandleSimulateRound()
         return;
     }
 
+    const FLeagueState PreLeague = LeagueSubsystem->GetLeague();
+    if (PreLeague.Teams.Num() == 0) { return; }
+    const FGuid& ClubId = PreLeague.Teams[0].TeamId;
+    PendingMatchGameId = FGuid();
+
+    if (PreLeague.Phase == ESeasonPhase::RegularSeason)
+    {
+        for (const FScheduledGame& Game : PreLeague.Schedule)
+        {
+            if (!Game.bComplete && Game.Round == PreLeague.CurrentRound &&
+                (Game.HomeTeamId == ClubId || Game.AwayTeamId == ClubId))
+            {
+                PendingMatchGameId = Game.GameId;
+                break;
+            }
+        }
+    }
+
+    if (PendingMatchGameId.IsValid())
+    {
+        RefreshDashboard();
+        SetScreen(17);
+        StatusText->SetText(FText::FromString(TEXT("Match Center — choose how to experience the game")));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Accent));
+    }
+    else
+    {
+        ExecuteSimulateRound();
+    }
+}
+
+void UManagementDashboardWidget::ExecuteSimulateRound()
+{
+    ULeagueGameSubsystem* LeagueSubsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!LeagueSubsystem) { return; }
+    FString Error;
+
     TArray<FMatchResult> Results;
     bool bSuccess = false;
     if (LeagueSubsystem->GetSeasonPhase() == ESeasonPhase::Playoffs)
@@ -1372,6 +1419,18 @@ void UManagementDashboardWidget::HandleSimulateRound()
                 }
             }
         }
+
+        for (int32 I = 0; I < LastRoundResults.Num() && I < LastRoundSnapshots.Num(); ++I)
+        {
+            const FMatchSnapshot& Snap = LastRoundSnapshots[I];
+            if (Snap.HomeTeam.TeamId == PostLeague.Teams[0].TeamId ||
+                Snap.AwayTeam.TeamId == PostLeague.Teams[0].TeamId)
+            {
+                LastPresentation = LeagueSubsystem->BuildPresentationPackage(LastRoundResults[I], Snap);
+                break;
+            }
+        }
+
         FString AutoSaveError;
         LeagueSubsystem->SaveLeagueAsync(TEXT("AutoSave"), AutoSaveError);
         RefreshDashboard();
@@ -2219,4 +2278,302 @@ void UManagementDashboardWidget::RefreshRivalriesScreen(const FLeagueState& Leag
 
         RivalriesList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
     }
+}
+
+void UManagementDashboardWidget::RefreshMatchCenterScreen(const FLeagueState& League, const FTeamState& Club)
+{
+    MatchCenterList->ClearChildren();
+
+    if (!PendingMatchGameId.IsValid())
+    {
+        MatchCenterList->AddChildToVerticalBox(MakeText(
+            TEXT("No upcoming game. Simulate a round to proceed."), 12, DashboardStyle::Secondary));
+        return;
+    }
+
+    const FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [this](const FScheduledGame& G) { return G.GameId == PendingMatchGameId; });
+    if (!Game) { return; }
+
+    const FTeamState* HomeTeam = League.Teams.FindByPredicate(
+        [&Game](const FTeamState& T) { return T.TeamId == Game->HomeTeamId; });
+    const FTeamState* AwayTeam = League.Teams.FindByPredicate(
+        [&Game](const FTeamState& T) { return T.TeamId == Game->AwayTeamId; });
+    if (!HomeTeam || !AwayTeam) { return; }
+
+    FTeamPresentationData HomeData = FMatchPresentationService::BuildTeamData(League, *HomeTeam, AwayTeam->TeamId);
+    FTeamPresentationData AwayData = FMatchPresentationService::BuildTeamData(League, *AwayTeam, HomeTeam->TeamId);
+
+    MatchCenterList->AddChildToVerticalBox(MakeText(TEXT("MATCH CENTER"), 18, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
+
+    UHorizontalBox* VsRow = WidgetTree->ConstructWidget<UHorizontalBox>();
+    VsRow->AddChildToHorizontalBox(MakeText(
+        FString::Printf(TEXT("%s (%d-%d)"), *HomeData.FullName, HomeData.Wins, HomeData.Losses),
+        16, DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(0.4f));
+    VsRow->AddChildToHorizontalBox(MakeText(TEXT("VS"), 16, DashboardStyle::Accent, true))
+        ->SetSize(DashboardStyle::Size(0.2f));
+    VsRow->AddChildToHorizontalBox(MakeText(
+        FString::Printf(TEXT("%s (%d-%d)"), *AwayData.FullName, AwayData.Wins, AwayData.Losses),
+        16, DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(0.4f));
+    MatchCenterList->AddChildToVerticalBox(VsRow)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
+
+    FString Implication = FMatchPresentationService::ComputeStandingsImplication(League, Game->HomeTeamId, Game->AwayTeamId);
+    if (!Implication.IsEmpty())
+    {
+        MatchCenterList->AddChildToVerticalBox(MakeText(Implication, 11, FLinearColor(0.95f, 0.80f, 0.25f, 1.0f)))
+            ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+    }
+
+    if (HomeData.RivalryIntensity > 0)
+    {
+        MatchCenterList->AddChildToVerticalBox(MakeText(
+            FString::Printf(TEXT("Rivalry intensity: %d"), HomeData.RivalryIntensity),
+            11, FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+    }
+
+    auto AddTeamCard = [&](const FTeamPresentationData& Data, const FString& Label)
+    {
+        UBorder* Card = MakeCard(DashboardStyle::CardRaised);
+        Card->SetPadding(FMargin(12.0f, 10.0f));
+        UVerticalBox* Content = WidgetTree->ConstructWidget<UVerticalBox>();
+        Card->SetContent(Content);
+
+        Content->AddChildToVerticalBox(MakeText(Label, 12, DashboardStyle::Accent, true));
+
+        if (Data.WinStreak > 0)
+        {
+            Content->AddChildToVerticalBox(MakeText(
+                FString::Printf(TEXT("Win streak: %d  |  Chemistry: %d"), Data.WinStreak, Data.Chemistry),
+                10, DashboardStyle::Secondary))->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 0.0f));
+        }
+        else
+        {
+            Content->AddChildToVerticalBox(MakeText(
+                FString::Printf(TEXT("Chemistry: %d"), Data.Chemistry),
+                10, DashboardStyle::Secondary))->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 0.0f));
+        }
+
+        FString PaceStr = Data.Tactics.Pace == EPaceStyle::Fast ? TEXT("Fast") :
+            Data.Tactics.Pace == EPaceStyle::Slow ? TEXT("Slow") : TEXT("Balanced");
+        FString OffStr = Data.Tactics.Offense == EOffenseStyle::Perimeter ? TEXT("Perimeter") :
+            Data.Tactics.Offense == EOffenseStyle::Inside ? TEXT("Inside") : TEXT("Balanced");
+        FString DefStr = Data.Tactics.Defense == EDefenseStyle::Zone ? TEXT("Zone") :
+            Data.Tactics.Defense == EDefenseStyle::Switching ? TEXT("Switching") : TEXT("Man");
+        Content->AddChildToVerticalBox(MakeText(
+            FString::Printf(TEXT("Tactics: %s / %s / %s"), *PaceStr, *OffStr, *DefStr),
+            10, DashboardStyle::Secondary))->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+
+        Content->AddChildToVerticalBox(MakeText(TEXT("STARTING FIVE"), 10, DashboardStyle::Accent, true))
+            ->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 4.0f));
+        for (const FPlayerProfile& Player : Data.StartingFive)
+        {
+            Content->AddChildToVerticalBox(MakeText(
+                FString::Printf(TEXT("%s  —  OVR %d"), *Player.DisplayName, Player.OverallRating),
+                10, DashboardStyle::Primary))->SetPadding(FMargin(0.0f, 1.0f, 0.0f, 0.0f));
+        }
+
+        if (Data.InjuredPlayers.Num() > 0)
+        {
+            Content->AddChildToVerticalBox(MakeText(TEXT("INJURED"), 10,
+                FLinearColor(0.95f, 0.32f, 0.28f, 1.0f), true))->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 4.0f));
+            for (const FString& Inj : Data.InjuredPlayers)
+            {
+                Content->AddChildToVerticalBox(MakeText(Inj, 9, DashboardStyle::Secondary));
+            }
+        }
+
+        MatchCenterList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+    };
+
+    AddTeamCard(HomeData, FString::Printf(TEXT("HOME — %s"), *HomeData.FullName));
+    AddTeamCard(AwayData, FString::Printf(TEXT("AWAY — %s"), *AwayData.FullName));
+
+    UHorizontalBox* ButtonRow = WidgetTree->ConstructWidget<UHorizontalBox>();
+
+    UButton* WatchBtn = WidgetTree->ConstructWidget<UButton>();
+    WatchBtn->SetBackgroundColor(DashboardStyle::Accent);
+    UTextBlock* WatchLabel = MakeText(TEXT("WATCH HIGHLIGHTS"), 12, FLinearColor::White, true);
+    WatchBtn->AddChild(WatchLabel);
+    WatchBtn->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleWatchHighlights);
+    ButtonRow->AddChildToHorizontalBox(WatchBtn)->SetSize(DashboardStyle::Size(0.45f));
+
+    UButton* InstantBtn = WidgetTree->ConstructWidget<UButton>();
+    InstantBtn->SetBackgroundColor(DashboardStyle::Card);
+    UTextBlock* InstantLabel = MakeText(TEXT("INSTANT RESULT"), 12, DashboardStyle::Accent, true);
+    InstantBtn->AddChild(InstantLabel);
+    InstantBtn->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleInstantResult);
+    ButtonRow->AddChildToHorizontalBox(InstantBtn)->SetSize(DashboardStyle::Size(0.45f));
+
+    MatchCenterList->AddChildToVerticalBox(ButtonRow)->SetPadding(FMargin(0.0f, 12.0f, 0.0f, 0.0f));
+}
+
+void UManagementDashboardWidget::HandleWatchHighlights()
+{
+    ULeagueGameSubsystem* LeagueSubsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!LeagueSubsystem || !PendingMatchGameId.IsValid()) { return; }
+
+    ExecuteSimulateRound();
+
+    if (LastPresentation.GameId.IsValid())
+    {
+        RefreshDashboard();
+        SetScreen(18);
+        StatusText->SetText(FText::FromString(TEXT("Post-game highlights and recap")));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
+    }
+}
+
+void UManagementDashboardWidget::HandleInstantResult()
+{
+    if (!PendingMatchGameId.IsValid()) { return; }
+    ExecuteSimulateRound();
+}
+
+void UManagementDashboardWidget::RefreshPostGameScreen()
+{
+    PostGameList->ClearChildren();
+
+    if (!LastPresentation.GameId.IsValid())
+    {
+        PostGameList->AddChildToVerticalBox(MakeText(
+            TEXT("No game data. Watch highlights from the Match Center."), 12, DashboardStyle::Secondary));
+        return;
+    }
+
+    const FMatchPresentationPackage& Pkg = LastPresentation;
+
+    PostGameList->AddChildToVerticalBox(MakeText(TEXT("POST-GAME RECAP"), 18, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+    PostGameList->AddChildToVerticalBox(MakeText(
+        FString::Printf(TEXT("%s  vs  %s"), *Pkg.Home.FullName, *Pkg.Away.FullName),
+        14, DashboardStyle::Primary, true));
+
+    PostGameList->AddChildToVerticalBox(MakeText(
+        FString::Printf(TEXT("FINAL: %d - %d"), Pkg.Result.HomeScore, Pkg.Result.AwayScore),
+        20, DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 8.0f));
+
+    if (Pkg.Recap.QuarterScores.Num() > 0)
+    {
+        UBorder* QCard = MakeCard(DashboardStyle::Card);
+        QCard->SetPadding(FMargin(12.0f, 8.0f));
+        UVerticalBox* QContent = WidgetTree->ConstructWidget<UVerticalBox>();
+        QCard->SetContent(QContent);
+
+        QContent->AddChildToVerticalBox(MakeText(TEXT("QUARTER SCORES"), 10, DashboardStyle::Accent, true));
+
+        UHorizontalBox* HeaderRow = WidgetTree->ConstructWidget<UHorizontalBox>();
+        HeaderRow->AddChildToHorizontalBox(MakeText(TEXT(""), 9, DashboardStyle::Secondary))
+            ->SetSize(DashboardStyle::Size(0.35f));
+        for (int32 Q = 0; Q < Pkg.Recap.QuarterScores.Num(); ++Q)
+        {
+            FString QLabel = Q < 4 ? FString::Printf(TEXT("Q%d"), Q + 1) : FString::Printf(TEXT("OT%d"), Q - 3);
+            HeaderRow->AddChildToHorizontalBox(MakeText(QLabel, 9, DashboardStyle::Secondary, true))
+                ->SetSize(DashboardStyle::Size(0.13f));
+        }
+        HeaderRow->AddChildToHorizontalBox(MakeText(TEXT("TOT"), 9, DashboardStyle::Accent, true))
+            ->SetSize(DashboardStyle::Size(0.13f));
+        QContent->AddChildToVerticalBox(HeaderRow)->SetPadding(FMargin(0.0f, 6.0f, 0.0f, 2.0f));
+
+        auto AddScoreLine = [&](const FString& TeamName, bool bHome)
+        {
+            UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+            Row->AddChildToHorizontalBox(MakeText(TeamName, 10, DashboardStyle::Primary, true))
+                ->SetSize(DashboardStyle::Size(0.35f));
+            for (int32 Q = 0; Q < Pkg.Recap.QuarterScores.Num(); ++Q)
+            {
+                const int32 Pts = bHome ? Pkg.Recap.QuarterScores[Q].HomePoints : Pkg.Recap.QuarterScores[Q].AwayPoints;
+                Row->AddChildToHorizontalBox(MakeText(FString::FromInt(Pts), 10, DashboardStyle::Primary))
+                    ->SetSize(DashboardStyle::Size(0.13f));
+            }
+            const int32 Total = bHome ? Pkg.Result.HomeScore : Pkg.Result.AwayScore;
+            Row->AddChildToHorizontalBox(MakeText(FString::FromInt(Total), 10, DashboardStyle::Accent, true))
+                ->SetSize(DashboardStyle::Size(0.13f));
+            QContent->AddChildToVerticalBox(Row)->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+        };
+        AddScoreLine(Pkg.Home.FullName, true);
+        AddScoreLine(Pkg.Away.FullName, false);
+
+        PostGameList->AddChildToVerticalBox(QCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+    }
+
+    if (Pkg.Highlights.Num() > 0)
+    {
+        UBorder* HCard = MakeCard(DashboardStyle::CardRaised);
+        HCard->SetPadding(FMargin(12.0f, 10.0f));
+        UVerticalBox* HContent = WidgetTree->ConstructWidget<UVerticalBox>();
+        HCard->SetContent(HContent);
+
+        HContent->AddChildToVerticalBox(MakeText(TEXT("HIGHLIGHTS"), 12, DashboardStyle::Accent, true));
+
+        for (const FHighlightCue& Cue : Pkg.Highlights)
+        {
+            FString TimeStr = Cue.Period <= 4
+                ? FString::Printf(TEXT("Q%d %d:%02d"), Cue.Period, Cue.ClockSeconds / 60, Cue.ClockSeconds % 60)
+                : FString::Printf(TEXT("OT%d %d:%02d"), Cue.Period - 4, Cue.ClockSeconds / 60, Cue.ClockSeconds % 60);
+
+            UHorizontalBox* CueRow = WidgetTree->ConstructWidget<UHorizontalBox>();
+            CueRow->AddChildToHorizontalBox(MakeText(TimeStr, 9, DashboardStyle::Secondary))
+                ->SetSize(DashboardStyle::Size(0.15f));
+            CueRow->AddChildToHorizontalBox(MakeText(Cue.Description, 9, DashboardStyle::Primary))
+                ->SetSize(DashboardStyle::Size(0.55f));
+            CueRow->AddChildToHorizontalBox(MakeText(
+                FString::Printf(TEXT("%d-%d"), Cue.HomeScoreAfter, Cue.AwayScoreAfter),
+                9, DashboardStyle::Accent))->SetSize(DashboardStyle::Size(0.15f));
+            CueRow->AddChildToHorizontalBox(MakeText(Cue.PrimaryPlayerName, 9, DashboardStyle::Secondary))
+                ->SetSize(DashboardStyle::Size(0.15f));
+
+            HContent->AddChildToVerticalBox(CueRow)->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 0.0f));
+        }
+
+        PostGameList->AddChildToVerticalBox(HCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+    }
+
+    if (Pkg.Recap.PlayByPlay.Num() > 0)
+    {
+        UBorder* BoxCard = MakeCard(DashboardStyle::Card);
+        BoxCard->SetPadding(FMargin(12.0f, 10.0f));
+        UVerticalBox* BoxContent = WidgetTree->ConstructWidget<UVerticalBox>();
+        BoxCard->SetContent(BoxContent);
+
+        BoxContent->AddChildToVerticalBox(MakeText(TEXT("KEY PLAYS"), 10, DashboardStyle::Accent, true));
+
+        int32 Count = 0;
+        for (const FPlayByPlayEntry& Entry : Pkg.Recap.PlayByPlay)
+        {
+            if (!Entry.bHighlight || Count >= 15) { continue; }
+            Count++;
+
+            FString TimeStr = Entry.Period <= 4
+                ? FString::Printf(TEXT("Q%d %d:%02d"), Entry.Period, Entry.ClockSeconds / 60, Entry.ClockSeconds % 60)
+                : FString::Printf(TEXT("OT%d %d:%02d"), Entry.Period - 4, Entry.ClockSeconds / 60, Entry.ClockSeconds % 60);
+
+            UHorizontalBox* PlayRow = WidgetTree->ConstructWidget<UHorizontalBox>();
+            PlayRow->AddChildToHorizontalBox(MakeText(TimeStr, 9, DashboardStyle::Secondary))
+                ->SetSize(DashboardStyle::Size(0.15f));
+            PlayRow->AddChildToHorizontalBox(MakeText(Entry.Description, 9, DashboardStyle::Primary))
+                ->SetSize(DashboardStyle::Size(0.65f));
+            PlayRow->AddChildToHorizontalBox(MakeText(
+                FString::Printf(TEXT("%d-%d"), Entry.HomeScore, Entry.AwayScore), 9, DashboardStyle::Accent))
+                ->SetSize(DashboardStyle::Size(0.2f));
+            BoxContent->AddChildToVerticalBox(PlayRow)->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+        }
+
+        PostGameList->AddChildToVerticalBox(BoxCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+    }
+
+    if (!Pkg.Recap.Headline.IsEmpty())
+    {
+        PostGameList->AddChildToVerticalBox(MakeText(Pkg.Recap.Headline, 12, DashboardStyle::Primary, true))
+            ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+        PostGameList->AddChildToVerticalBox(MakeText(Pkg.Recap.Summary, 10, DashboardStyle::Secondary));
+    }
+
+    UButton* ReturnBtn = WidgetTree->ConstructWidget<UButton>();
+    ReturnBtn->SetBackgroundColor(DashboardStyle::Accent);
+    UTextBlock* ReturnLabel = MakeText(TEXT("RETURN TO DASHBOARD"), 12, FLinearColor::White, true);
+    ReturnBtn->AddChild(ReturnLabel);
+    ReturnBtn->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowOverview);
+    PostGameList->AddChildToVerticalBox(ReturnBtn)->SetPadding(FMargin(0.0f, 16.0f, 0.0f, 0.0f));
 }
