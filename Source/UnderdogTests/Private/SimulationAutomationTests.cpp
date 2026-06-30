@@ -1,10 +1,12 @@
 #include "Misc/AutomationTest.h"
 #include "AwardsService.h"
 #include "ChemistryService.h"
+#include "CareerService.h"
 #include "CommentaryService.h"
 #include "DeterministicRandom.h"
 #include "DevelopmentService.h"
 #include "FreeAgencyService.h"
+#include "FranchiseService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "MatchSimulator.h"
@@ -18,6 +20,7 @@
 #include "RivalryService.h"
 #include "HighlightDirectorService.h"
 #include "MatchPresentationService.h"
+#include "StaffService.h"
 #include "UnderdogSaveGame.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -226,21 +229,24 @@ bool FTradeSystemTest::RunTest(const FString& Parameters)
 
     FString Error;
     TArray<FGuid> Outgoing = { League.Teams[0].Players[13].PlayerId, League.Teams[0].Players[14].PlayerId };
-    TArray<FGuid> Incoming = { League.Teams[11].Players[14].PlayerId };
+    TArray<FGuid> Incoming = { League.Teams[11].Players[13].PlayerId, League.Teams[11].Players[14].PlayerId };
 
     const bool bResult = FTradeService::ProposeTrade(League, ClubId, Outgoing, OpponentId, Incoming, Error);
 
     if (bResult)
     {
-        TestEqual(TEXT("Proposer roster adjusted"), League.Teams[0].Players.Num(), ProposerRosterBefore - 1);
-        TestEqual(TEXT("Receiver roster adjusted"), League.Teams[11].Players.Num(), ReceiverRosterBefore + 1);
+        TestEqual(TEXT("Proposer roster remains legal"), League.Teams[0].Players.Num(), ProposerRosterBefore);
+        TestEqual(TEXT("Receiver roster remains legal"), League.Teams[11].Players.Num(), ReceiverRosterBefore);
         TestTrue(TEXT("Trade recorded in history"), League.TradeHistory.Num() > 0);
         TestEqual(TEXT("Trade status accepted"), League.TradeHistory.Last().Status, ETradeStatus::Accepted);
     }
     else
     {
         TestTrue(TEXT("Rejected trade recorded"), League.TradeHistory.Num() > 0);
-        TestEqual(TEXT("Trade status rejected"), League.TradeHistory.Last().Status, ETradeStatus::Rejected);
+        if (League.TradeHistory.Num() > 0)
+        {
+            TestEqual(TEXT("Trade status rejected"), League.TradeHistory.Last().Status, ETradeStatus::Rejected);
+        }
     }
 
     FString SelfError;
@@ -276,7 +282,7 @@ bool FPlayoffBracketTest::RunTest(const FString& Parameters)
         }
     }
     TestEqual(TEXT("Phase transitions to playoffs"), League.Phase, ESeasonPhase::Playoffs);
-    TestEqual(TEXT("Bracket has 4 first-round series"), League.Playoffs.Series.Num(), 4);
+    TestEqual(TEXT("Bracket has 2 semifinal series"), League.Playoffs.Series.Num(), 2);
 
     for (const FPlayoffSeries& Series : League.Playoffs.Series)
     {
@@ -322,7 +328,7 @@ bool FFullSeasonToChampionTest::RunTest(const FString& Parameters)
 
     TestEqual(TEXT("Season completes"), League.Phase, ESeasonPhase::Complete);
     TestTrue(TEXT("Champion declared"), League.Playoffs.ChampionTeamId.IsValid());
-    TestTrue(TEXT("Playoffs took reasonable games"), PlayoffGames >= 12 && PlayoffGames <= 28);
+    TestTrue(TEXT("Playoffs took reasonable games"), PlayoffGames >= 6 && PlayoffGames <= 9);
 
     const FTeamState* Champion = League.Teams.FindByPredicate(
         [&League](const FTeamState& T) { return T.TeamId == League.Playoffs.ChampionTeamId; });
@@ -510,11 +516,16 @@ bool FOffseasonAgingAndContractsTest::RunTest(const FString& Parameters)
         TArray<FMatchResult> Results;
         FLeagueService::AdvanceCurrentRound(League, Results, Error);
     }
-    while (League.Phase == ESeasonPhase::Playoffs)
+    for (int32 PlayoffStep = 0; PlayoffStep < 20 && League.Phase == ESeasonPhase::Playoffs; ++PlayoffStep)
     {
         TArray<FMatchResult> Results;
-        FLeagueService::AdvancePlayoffs(League, Results, Error);
+        if (!FLeagueService::AdvancePlayoffs(League, Results, Error))
+        {
+            AddError(FString::Printf(TEXT("Playoff advance failed: %s"), *Error));
+            return false;
+        }
     }
+    TestEqual(TEXT("Playoffs completed"), League.Phase, ESeasonPhase::Complete);
     TestEqual(TEXT("Season complete"), League.Phase, ESeasonPhase::Complete);
 
     TMap<FGuid, int32> AgesBefore;
@@ -527,9 +538,6 @@ bool FOffseasonAgingAndContractsTest::RunTest(const FString& Parameters)
     }
 
     TestTrue(TEXT("Start offseason"), FOffseasonService::StartOffseason(League, Error));
-    TestEqual(TEXT("Offseason at awards step"), League.Offseason.CurrentStep, EOffseasonStep::Awards);
-
-    TestTrue(TEXT("Advance past awards"), FOffseasonService::AdvanceOffseason(League, Error));
     TestEqual(TEXT("At aging step"), League.Offseason.CurrentStep, EOffseasonStep::Aging);
 
     TestTrue(TEXT("Advance past aging"), FOffseasonService::AdvanceOffseason(League, Error));
@@ -546,7 +554,7 @@ bool FOffseasonAgingAndContractsTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Players aged"), bAnyAged);
 
-    TestTrue(TEXT("Advance past contracts"), FOffseasonService::AdvanceOffseason(League, Error));
+    TestTrue(TEXT("Advance past contract expiry"), FOffseasonService::AdvanceOffseason(League, Error));
     TestEqual(TEXT("At free agency step"), League.Offseason.CurrentStep, EOffseasonStep::FreeAgency);
     TestTrue(TEXT("Free agent pool built"), League.Offseason.FreeAgentPool.Num() >= 0);
 
@@ -572,11 +580,16 @@ bool FDraftAndMultiSeasonTest::RunTest(const FString& Parameters)
         TArray<FMatchResult> Results;
         FLeagueService::AdvanceCurrentRound(League, Results, Error);
     }
-    while (League.Phase == ESeasonPhase::Playoffs)
+    for (int32 PlayoffStep = 0; PlayoffStep < 20 && League.Phase == ESeasonPhase::Playoffs; ++PlayoffStep)
     {
         TArray<FMatchResult> Results;
-        FLeagueService::AdvancePlayoffs(League, Results, Error);
+        if (!FLeagueService::AdvancePlayoffs(League, Results, Error))
+        {
+            AddError(FString::Printf(TEXT("Playoff advance failed: %s"), *Error));
+            return false;
+        }
     }
+    TestEqual(TEXT("Playoffs completed before offseason"), League.Phase, ESeasonPhase::Complete);
 
     TestTrue(TEXT("Start offseason"), FOffseasonService::StartOffseason(League, Error));
 
@@ -598,7 +611,8 @@ bool FDraftAndMultiSeasonTest::RunTest(const FString& Parameters)
             TestTrue(TEXT("Draft player succeeds"),
                 FOffseasonService::DraftPlayer(League, League.Teams[0].TeamId, FirstAvailable, Error));
             TestTrue(TEXT("Prospect marked drafted"), League.Offseason.DraftClass[FirstAvailable].bDrafted);
-            TestEqual(TEXT("Roster grew by one"), League.Teams[0].Players.Num(), RosterBefore + 1);
+        TestEqual(TEXT("Roster respects 15-player cap after draft"),
+            League.Teams[0].Players.Num(), FMath::Min(RosterBefore + 1, 15));
         }
     }
 
@@ -879,16 +893,22 @@ bool FPlayerDraftPickTest::RunTest(const FString& Parameters)
     FLeagueState League = FLeagueGenerator::Generate(550055ULL);
     FString Error;
 
-    League.Phase = ESeasonPhase::RegularSeason;
-    League.CurrentRound = League.Schedule.Num();
-    FLeagueService::StartPlayoffs(League, Error);
-    for (int32 R = 0; R < 40; ++R) { FLeagueService::AdvancePlayoffs(League, Error); }
+    for (int32 R = 0; R < 22; ++R)
+    {
+        TArray<FMatchResult> Results;
+        FLeagueService::AdvanceCurrentRound(League, Results, Error);
+    }
+    for (int32 R = 0; R < 40 && League.Phase == ESeasonPhase::Playoffs; ++R)
+    {
+        TArray<FMatchResult> Results;
+        FLeagueService::AdvancePlayoffs(League, Results, Error);
+    }
     FOffseasonService::StartOffseason(League, Error);
 
     while (League.Offseason.CurrentStep != EOffseasonStep::Draft)
     {
         FOffseasonService::AdvanceOffseason(League, Error);
-        if (League.Phase != ESeasonPhase::Offseason) { break; }
+        if (League.Offseason.CurrentStep == EOffseasonStep::Complete) { break; }
     }
     if (League.Offseason.CurrentStep != EOffseasonStep::Draft)
     {
@@ -910,9 +930,9 @@ bool FPlayerDraftPickTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Prospect assigned to team"), League.Offseason.DraftClass[UndraftedIdx].DraftedByTeamId == PlayerTeam);
 
     bool bFoundOnRoster = false;
-    for (const FAthleteState& P : League.Teams[0].Players)
+    for (const FPlayerProfile& P : League.Teams[0].Players)
     {
-        if (P.Profile.DisplayName == ProspectName) { bFoundOnRoster = true; break; }
+        if (P.DisplayName == ProspectName) { bFoundOnRoster = true; break; }
     }
     TestTrue(TEXT("Drafted player on team roster"), bFoundOnRoster);
 
@@ -941,10 +961,10 @@ bool FMultiPlayerTradeTest::RunTest(const FString& Parameters)
     Incoming.Add(League.Teams[1].Players[0].PlayerId);
     Incoming.Add(League.Teams[1].Players[1].PlayerId);
 
-    const FString OutName0 = League.Teams[0].Players[0].Profile.DisplayName;
-    const FString OutName1 = League.Teams[0].Players[1].Profile.DisplayName;
-    const FString InName0 = League.Teams[1].Players[0].Profile.DisplayName;
-    const FString InName1 = League.Teams[1].Players[1].Profile.DisplayName;
+    const FString OutName0 = League.Teams[0].Players[0].DisplayName;
+    const FString OutName1 = League.Teams[0].Players[1].DisplayName;
+    const FString InName0 = League.Teams[1].Players[0].DisplayName;
+    const FString InName1 = League.Teams[1].Players[1].DisplayName;
 
     int32 Team0CountBefore = League.Teams[0].Players.Num();
     int32 Team1CountBefore = League.Teams[1].Players.Num();
@@ -955,7 +975,7 @@ bool FMultiPlayerTradeTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Team 1 roster count preserved"), League.Teams[1].Players.Num(), Team1CountBefore);
 
     auto FindOnTeam = [](const FTeamState& Team, const FString& Name) -> bool {
-        for (const FAthleteState& P : Team.Players) { if (P.Profile.DisplayName == Name) return true; }
+        for (const FPlayerProfile& P : Team.Players) { if (P.DisplayName == Name) return true; }
         return false;
     };
 
@@ -977,22 +997,22 @@ bool FInjuryReportTest::RunTest(const FString& Parameters)
 {
     FLeagueState League = FLeagueGenerator::Generate(770077ULL);
 
-    League.Teams[0].Players[0].InjuryGamesRemaining = 3;
-    League.Teams[0].Players[0].InjuryDescription = TEXT("Ankle Sprain");
+    League.Teams[0].PlayerStates[0].InjuryGamesRemaining = 3;
+    League.Teams[0].PlayerStates[0].InjuryDescription = TEXT("Ankle Sprain");
 
-    TestEqual(TEXT("Injury games remaining set"), League.Teams[0].Players[0].InjuryGamesRemaining, 3);
-    TestEqual(TEXT("Injury description set"), League.Teams[0].Players[0].InjuryDescription, FString(TEXT("Ankle Sprain")));
+    TestEqual(TEXT("Injury games remaining set"), League.Teams[0].PlayerStates[0].InjuryGamesRemaining, 3);
+    TestEqual(TEXT("Injury description set"), League.Teams[0].PlayerStates[0].InjuryDescription, FString(TEXT("Ankle Sprain")));
 
     FString Error;
     TArray<FMatchResult> Results;
     FLeagueService::AdvanceCurrentRound(League, Results, Error);
 
-    TestTrue(TEXT("Injury decremented after round"), League.Teams[0].Players[0].InjuryGamesRemaining < 3);
+    TestTrue(TEXT("Injury decremented after round"), League.Teams[0].PlayerStates[0].InjuryGamesRemaining < 3);
 
-    League.Teams[0].Players[1].InjuryGamesRemaining = 0;
-    League.Teams[0].Players[1].InjuryDescription = TEXT("");
-    TestEqual(TEXT("Healthy player has zero injury games"), League.Teams[0].Players[1].InjuryGamesRemaining, 0);
-    TestTrue(TEXT("Healthy player has empty injury description"), League.Teams[0].Players[1].InjuryDescription.IsEmpty());
+    League.Teams[0].PlayerStates[1].InjuryGamesRemaining = 0;
+    League.Teams[0].PlayerStates[1].InjuryDescription = TEXT("");
+    TestEqual(TEXT("Healthy player has zero injury games"), League.Teams[0].PlayerStates[1].InjuryGamesRemaining, 0);
+    TestTrue(TEXT("Healthy player has empty injury description"), League.Teams[0].PlayerStates[1].InjuryDescription.IsEmpty());
 
     return true;
 }
@@ -1003,7 +1023,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveSchemaVersionTest,
 
 bool FSaveSchemaVersionTest::RunTest(const FString& Parameters)
 {
-    TestEqual(TEXT("Schema version is 5"), UUnderdogSaveGame::CurrentSchemaVersion, 5);
+    TestEqual(TEXT("Schema version is 9"), UUnderdogSaveGame::CurrentSchemaVersion, 9);
     return true;
 }
 
@@ -1065,7 +1085,11 @@ bool FLeagueHistoryTest::RunTest(const FString& Parameters)
         TArray<FMatchResult> Results;
         FLeagueService::AdvanceCurrentRound(League, Results, Error);
     }
-    for (int32 R = 0; R < 40; ++R) { FLeagueService::AdvancePlayoffs(League, Error); }
+    for (int32 R = 0; R < 40 && League.Phase == ESeasonPhase::Playoffs; ++R)
+    {
+        TArray<FMatchResult> Results;
+        FLeagueService::AdvancePlayoffs(League, Results, Error);
+    }
 
     TestTrue(TEXT("Season completed"), League.Phase == ESeasonPhase::Complete);
     FOffseasonService::StartOffseason(League, Error);
@@ -1312,7 +1336,323 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveSchemaV6Test,
 
 bool FSaveSchemaV6Test::RunTest(const FString& Parameters)
 {
-    TestEqual(TEXT("Schema version is 6"), UUnderdogSaveGame::CurrentSchemaVersion, 6);
+    TestEqual(TEXT("Schema version is 9"), UUnderdogSaveGame::CurrentSchemaVersion, 9);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBroadcastCueContractTest,
+    "Underdog.Phase7.BroadcastCueContract",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FBroadcastCueContractTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(707070ULL);
+    FString Error;
+    TArray<FMatchResult> Results;
+    TestTrue(TEXT("Round simulated"), FLeagueService::AdvanceCurrentRound(League, Results, Error));
+    TestTrue(TEXT("Result generated"), Results.Num() > 0);
+
+    const FMatchResult& Result = Results[0];
+    const FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [&Result](const FScheduledGame& Candidate) { return Candidate.GameId == Result.GameId; });
+    TestNotNull(TEXT("Scheduled game found"), Game);
+    if (!Game) { return false; }
+
+    FMatchSnapshot Snapshot;
+    TestTrue(TEXT("Snapshot rebuilt"), FLeagueService::BuildSnapshot(League, *Game, Snapshot, Error));
+    const TArray<FHighlightCue> Cues = FHighlightDirectorService::BuildHighlights(Result, Snapshot);
+    TestTrue(TEXT("Broadcast has at least one cue"), Cues.Num() > 0);
+
+    for (const FHighlightCue& Cue : Cues)
+    {
+        TestTrue(TEXT("Cue duration is safe"), Cue.PlaybackDuration >= 0.5f);
+        TestTrue(TEXT("Cue period is valid"), Cue.Period >= 1);
+        TestTrue(TEXT("Cue clock is valid"), Cue.ClockSeconds >= 0);
+        TestTrue(TEXT("Cue description is present"), !Cue.Description.IsEmpty());
+        TestTrue(TEXT("Cue score does not exceed final home score"), Cue.HomeScoreAfter <= Result.HomeScore);
+        TestTrue(TEXT("Cue score does not exceed final away score"), Cue.AwayScoreAfter <= Result.AwayScore);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFranchiseInitializationTest,
+    "Underdog.Phase8.FranchiseInitialization",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFranchiseInitializationTest::RunTest(const FString& Parameters)
+{
+    const FLeagueState League = FLeagueGenerator::Generate(808001ULL);
+    for (const FTeamState& Team : League.Teams)
+    {
+        TestEqual(TEXT("Four facilities initialized"), Team.Franchise.Facilities.Num(), 4);
+        TestEqual(TEXT("Three owner objectives initialized"), Team.Franchise.Ownership.Objectives.Num(), 3);
+        TestTrue(TEXT("Starting cash is positive"), Team.Franchise.Finances.CashMinorUnits > 0);
+        TestTrue(TEXT("Fan support bounded"), Team.Franchise.Fanbase.Support >= 0
+            && Team.Franchise.Fanbase.Support <= 100);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFranchiseGameEconomicsTest,
+    "Underdog.Phase8.GameEconomics",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFranchiseGameEconomicsTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(808002ULL);
+    const int64 StartingCash = League.Teams[0].Franchise.Finances.CashMinorUnits;
+    FString Error;
+    TArray<FMatchResult> Results;
+    TestTrue(TEXT("Round simulated"), FLeagueService::AdvanceCurrentRound(League, Results, Error));
+    TestTrue(TEXT("Six game results generated"), Results.Num() == 6);
+
+    int32 TeamsWithRevenue = 0;
+    for (const FTeamState& Team : League.Teams)
+    {
+        if (Team.Franchise.Finances.SeasonRevenueMinorUnits > 0) { TeamsWithRevenue++; }
+        TestTrue(TEXT("Expenses recorded"), Team.Franchise.Finances.SeasonExpensesMinorUnits > 0);
+        TestEqual(TEXT("Legacy balance synchronized"), Team.OperatingBalanceMinorUnits,
+            Team.Franchise.Finances.CashMinorUnits);
+    }
+    TestEqual(TEXT("Six home teams earned revenue"), TeamsWithRevenue, 6);
+    TestTrue(TEXT("Cash changed after round"), League.Teams[0].Franchise.Finances.CashMinorUnits != StartingCash);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFacilityUpgradeTest,
+    "Underdog.Phase8.FacilityUpgrade",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFacilityUpgradeTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(808003ULL);
+    FTeamState& Team = League.Teams[0];
+    const int64 Cost = FFranchiseService::GetFacilityUpgradeCost(Team, EFacilityType::TrainingCentre);
+    const int64 StartingCash = Team.Franchise.Finances.CashMinorUnits;
+    FString Error;
+    TestTrue(TEXT("Training facility upgrade succeeds"), FFranchiseService::UpgradeFacility(
+        League, Team.TeamId, EFacilityType::TrainingCentre, Error));
+    TestEqual(TEXT("Training level increased"), FFranchiseService::GetFacilityLevel(
+        League.Teams[0], EFacilityType::TrainingCentre), 2);
+    TestEqual(TEXT("Upgrade cost deducted"), League.Teams[0].Franchise.Finances.CashMinorUnits,
+        StartingCash - Cost);
+    TestFalse(TEXT("Invalid ticket price rejected"), FFranchiseService::SetTicketPrice(
+        League, Team.TeamId, 1999, Error));
+    TestTrue(TEXT("Valid ticket price accepted"), FFranchiseService::SetTicketPrice(
+        League, Team.TeamId, 5500, Error));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOwnerObjectiveTest,
+    "Underdog.Phase8.OwnerObjectives",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOwnerObjectiveTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(808004ULL);
+    FTeamState& Team = League.Teams[0];
+    Team.Wins = 10;
+    Team.Losses = 4;
+    Team.Chemistry = 70;
+    Team.Franchise.Finances.SeasonRevenueMinorUnits = 500000000LL;
+    Team.Franchise.Finances.SeasonExpensesMinorUnits = 400000000LL;
+    FFranchiseService::EvaluateOwnership(Team, ESeasonPhase::RegularSeason);
+    int32 Completed = 0;
+    for (const FOwnerObjective& Objective : Team.Franchise.Ownership.Objectives)
+    {
+        Completed += Objective.bCompleted ? 1 : 0;
+    }
+    TestEqual(TEXT("All standard objectives completed"), Completed, 3);
+    TestTrue(TEXT("Owner confidence improved"), Team.Franchise.Ownership.Confidence >= 75);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStaffInitializationTest,
+    "Underdog.Phase9.StaffInitialization",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStaffInitializationTest::RunTest(const FString& Parameters)
+{
+    const FLeagueState League = FLeagueGenerator::Generate(909001ULL);
+    TestEqual(TEXT("Staff market initialized"), League.StaffMarket.Num(), 18);
+    for (const FTeamState& Team : League.Teams)
+    {
+        TestEqual(TEXT("Every team starts with six staff roles"), Team.Organization.Staff.Num(), 6);
+        TestTrue(TEXT("Staff payroll calculated"), Team.Organization.AnnualPayrollMinorUnits > 0);
+        TestTrue(TEXT("Staff chemistry bounded"), Team.Organization.StaffChemistry >= 0
+            && Team.Organization.StaffChemistry <= 100);
+    }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStaffHiringTest,
+    "Underdog.Phase9.StaffHiring",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStaffHiringTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(909002ULL);
+    FTeamState& Team = League.Teams[0];
+    const FStaffMember Candidate = League.StaffMarket[0];
+    const int64 CashBefore = Team.Franchise.Finances.CashMinorUnits;
+    FString Error;
+    TestFalse(TEXT("Low salary offer rejected"), FStaffService::HireStaff(League, Team.TeamId,
+        Candidate.StaffId, Candidate.Contract.SalaryMinorUnits - 1, 2, Error));
+    TestTrue(TEXT("Asking salary offer accepted"), FStaffService::HireStaff(League, Team.TeamId,
+        Candidate.StaffId, Candidate.Contract.SalaryMinorUnits, 2, Error));
+    int32 RoleCount = 0;
+    for (const FStaffMember& Staff : League.Teams[0].Organization.Staff)
+    {
+        RoleCount += Staff.Role == Candidate.Role ? 1 : 0;
+    }
+    TestEqual(TEXT("Role remains filled once"), RoleCount, 1);
+    TestTrue(TEXT("Hiring costs cash"), League.Teams[0].Franchise.Finances.CashMinorUnits < CashBefore);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStaffEffectsAndAITest,
+    "Underdog.Phase9.StaffEffectsAndAI",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FStaffEffectsAndAITest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(909003ULL);
+    FTeamState& Team = League.Teams[1];
+    Team.Organization.Staff.RemoveAll([](const FStaffMember& Staff)
+        { return Staff.Role == EStaffRole::HeadScout; });
+    const int32 FamiliarityBefore = Team.Organization.TacticalFamiliarity;
+    FStaffService::ProcessRound(League, League.Teams[0].TeamId);
+    TestNotNull(TEXT("AI fills vacant head scout role"),
+        FStaffService::FindStaff(League.Teams[1], EStaffRole::HeadScout));
+    TestTrue(TEXT("Tactical familiarity increases"),
+        League.Teams[1].Organization.TacticalFamiliarity > FamiliarityBefore);
+    TestTrue(TEXT("Development bonus bounded"),
+        FStaffService::GetDevelopmentBonus(League.Teams[1]) >= -200
+        && FStaffService::GetDevelopmentBonus(League.Teams[1]) <= 350);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTradeLegalityAndExplanationTest,
+    "Underdog.Phase9.TradeLegalityAndExplanation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FTradeLegalityAndExplanationTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(909004ULL);
+    FTradeOffer Offer;
+    Offer.ProposingTeamId = League.Teams[0].TeamId;
+    Offer.ReceivingTeamId = League.Teams[1].TeamId;
+    FTradeAsset Offered; Offered.PlayerId = League.Teams[0].Players[0].PlayerId; Offered.FromTeamId = Offer.ProposingTeamId;
+    FTradeAsset Requested; Requested.PlayerId = League.Teams[1].Players[0].PlayerId; Requested.FromTeamId = Offer.ReceivingTeamId;
+    Offer.Outgoing.Add(Offered);
+    Offer.Incoming.Add(Requested);
+    const FTradeEvaluation Evaluation = FTradeService::EvaluateTradeDetailed(League, Offer);
+    TestTrue(TEXT("Normal offer is legally evaluable"), Evaluation.bLegal);
+    TestTrue(TEXT("Evaluation includes summary"), !Evaluation.Summary.IsEmpty());
+    TestTrue(TEXT("Both package values calculated"), Evaluation.ProposerReceivesValue > 0
+        && Evaluation.ReceiverReceivesValue > 0);
+
+    FString Error;
+    TArray<FGuid> FourPlayers;
+    for (int32 Index = 0; Index < 4; ++Index) { FourPlayers.Add(League.Teams[0].Players[Index].PlayerId); }
+    TestFalse(TEXT("Four-player side rejected"), FTradeService::ProposeTrade(League,
+        League.Teams[0].TeamId, FourPlayers, League.Teams[1].TeamId,
+        { League.Teams[1].Players[0].PlayerId }, Error));
+    TestTrue(TEXT("Rejection explains three-player limit"), Error.Contains(TEXT("three")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FManagerCareerTrackingTest,
+    "Underdog.Phase10.ManagerCareerTracking",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FManagerCareerTrackingTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(1010001ULL);
+    TestTrue(TEXT("Manager assigned to player club"),
+        League.ManagerCareer.CurrentTeamId == League.Teams[0].TeamId);
+    FString Error;
+    TestFalse(TEXT("Invalid short manager name rejected"),
+        FCareerService::SetManagerName(League, TEXT("A"), Error));
+    TestTrue(TEXT("Valid manager name accepted"),
+        FCareerService::SetManagerName(League, TEXT("Jaskeerat Rai"), Error));
+
+    TArray<FMatchResult> Results;
+    TestTrue(TEXT("Round advances"), FLeagueService::AdvanceCurrentRound(League, Results, Error));
+    TestEqual(TEXT("Manager record contains one game"),
+        League.ManagerCareer.CareerWins + League.ManagerCareer.CareerLosses, 1);
+    TestTrue(TEXT("Career score is non-negative"), League.ManagerCareer.CareerScore >= 0);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FManagerJobMovementTest,
+    "Underdog.Phase10.ManagerJobMovement",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FManagerJobMovementTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(1010002ULL);
+    const FGuid OriginalTeam = League.ManagerCareer.CurrentTeamId;
+    FCareerService::GenerateJobOffers(League);
+    TestTrue(TEXT("At least one job offer generated"), !League.ManagerCareer.JobOffers.IsEmpty());
+    const FGuid OfferedTeam = League.ManagerCareer.JobOffers[0].TeamId;
+    FString Error;
+    TestTrue(TEXT("Job offer accepted"), FCareerService::AcceptJobOffer(League, OfferedTeam, Error));
+    TestTrue(TEXT("Manager changed clubs"), League.ManagerCareer.CurrentTeamId != OriginalTeam);
+    TestEqual(TEXT("Selected club becomes player team index zero"), League.Teams[0].TeamId, OfferedTeam);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTenSeasonCareerSoakTest,
+    "Underdog.Phase10.TenSeasonCareerSoak",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FTenSeasonCareerSoakTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(1010003ULL);
+    FString Error;
+    for (int32 Season = 0; Season < 10; ++Season)
+    {
+        for (int32 Round = 0; Round < 22; ++Round)
+        {
+            TArray<FMatchResult> Results;
+            if (!FLeagueService::AdvanceCurrentRound(League, Results, Error))
+            {
+                AddError(FString::Printf(TEXT("Season %d round %d failed: %s"), Season + 1, Round + 1, *Error));
+                return false;
+            }
+        }
+        for (int32 Step = 0; Step < 12 && League.Phase == ESeasonPhase::Playoffs; ++Step)
+        {
+            TArray<FMatchResult> Results;
+            if (!FLeagueService::AdvancePlayoffs(League, Results, Error))
+            {
+                AddError(FString::Printf(TEXT("Season %d playoffs failed: %s"), Season + 1, *Error));
+                return false;
+            }
+        }
+        TestEqual(TEXT("Season reached completion"), League.Phase, ESeasonPhase::Complete);
+        TestTrue(TEXT("Offseason starts"), FOffseasonService::StartOffseason(League, Error));
+        for (int32 Step = 0; Step < 10 && League.Phase == ESeasonPhase::Complete; ++Step)
+        {
+            if (!FOffseasonService::AdvanceOffseason(League, Error))
+            {
+                AddError(FString::Printf(TEXT("Season %d offseason failed: %s"), Season + 1, *Error));
+                return false;
+            }
+        }
+        TestEqual(TEXT("New regular season begins"), League.Phase, ESeasonPhase::RegularSeason);
+        for (const FTeamState& Team : League.Teams)
+        {
+            TestTrue(TEXT("Roster remains legal"), Team.Players.Num() >= 10 && Team.Players.Num() <= 15);
+            TestTrue(TEXT("Organization payroll remains valid"), Team.Organization.AnnualPayrollMinorUnits >= 0);
+            TestTrue(TEXT("Franchise cash remains bounded"),
+                Team.Franchise.Finances.CashMinorUnits > -50000000000LL
+                && Team.Franchise.Finances.CashMinorUnits < 500000000000LL);
+        }
+    }
+    TestEqual(TEXT("Ten manager seasons recorded"), League.ManagerCareer.SeasonHistory.Num(), 10);
+    TestEqual(TEXT("Career advanced to season eleven"), League.SeasonNumber, 11);
     return true;
 }
 

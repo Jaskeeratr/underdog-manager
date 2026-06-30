@@ -62,6 +62,21 @@ public:
     UFUNCTION(BlueprintPure, Category="Underdog|Save") bool GetSaveSlotInfo(const FString& SlotName,
         int32& OutSeason, int32& OutRound, FString& OutTeamName, FDateTime& OutSavedAt) const;
     UFUNCTION(BlueprintPure, Category="Underdog|League") bool HasLeague() const { return League.Teams.Num() > 0; }
+    UFUNCTION(BlueprintPure, Category="Underdog|Franchise") FFranchiseState GetFranchiseState(const FGuid& TeamId) const;
+    UFUNCTION(BlueprintCallable, Category="Underdog|Franchise") bool SetTicketPrice(const FGuid& TeamId,
+        int64 TicketPriceMinorUnits, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Franchise") bool UpgradeFacility(const FGuid& TeamId,
+        EFacilityType Type, FString& OutError);
+    UFUNCTION(BlueprintPure, Category="Underdog|Franchise") int64 GetFacilityUpgradeCost(const FGuid& TeamId,
+        EFacilityType Type) const;
+    UFUNCTION(BlueprintPure, Category="Underdog|Staff") TArray<FStaffMember> GetStaffMarket() const { return League.StaffMarket; }
+    UFUNCTION(BlueprintCallable, Category="Underdog|Staff") bool HireStaff(const FGuid& TeamId,
+        const FGuid& StaffId, int64 OfferedSalary, int32 OfferedYears, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Staff") bool FireStaff(const FGuid& TeamId,
+        EStaffRole Role, FString& OutError);
+    UFUNCTION(BlueprintPure, Category="Underdog|Career") FManagerCareer GetManagerCareer() const { return League.ManagerCareer; }
+    UFUNCTION(BlueprintCallable, Category="Underdog|Career") bool AcceptManagerJob(const FGuid& TeamId, FString& OutError);
+    UFUNCTION(BlueprintCallable, Category="Underdog|Career") bool SetManagerName(const FString& ManagerName, FString& OutError);
 
 private:
     UPROPERTY() FLeagueState League;

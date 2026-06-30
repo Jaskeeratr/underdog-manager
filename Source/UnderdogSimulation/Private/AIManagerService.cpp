@@ -2,6 +2,7 @@
 #include "ManagementService.h"
 #include "TradeService.h"
 #include "DeterministicRandom.h"
+#include "StaffService.h"
 
 namespace
 {
@@ -33,15 +34,28 @@ namespace
 
 void FAIManagerService::ProcessRound(FLeagueState& League, const FGuid& PlayerTeamId)
 {
-    for (FTeamState& Team : League.Teams)
+    // Trade execution commits an atomic league copy and can therefore replace the
+    // Teams array. Iterate stable IDs instead of retaining array references across
+    // a management action that may invalidate them.
+    TArray<FGuid> ManagedTeamIds;
+    ManagedTeamIds.Reserve(League.Teams.Num());
+    for (const FTeamState& Team : League.Teams)
     {
-        if (Team.TeamId == PlayerTeamId) { continue; }
-        AdjustRotation(League, Team);
-        ChooseTraining(Team);
-        AdjustTactics(Team);
-        AssignScouts(League, Team);
-        ConsiderTrades(League, Team);
+        if (Team.TeamId != PlayerTeamId) { ManagedTeamIds.Add(Team.TeamId); }
     }
+
+    for (const FGuid& TeamId : ManagedTeamIds)
+    {
+        FTeamState* Team = League.Teams.FindByPredicate(
+            [&TeamId](const FTeamState& Candidate) { return Candidate.TeamId == TeamId; });
+        if (!Team) { continue; }
+        AdjustRotation(League, *Team);
+        ChooseTraining(*Team);
+        AdjustTactics(*Team);
+        AssignScouts(League, *Team);
+        ConsiderTrades(League, *Team);
+    }
+    FStaffService::ProcessRound(League, PlayerTeamId);
 }
 
 void FAIManagerService::AdjustRotation(FLeagueState& League, FTeamState& Team)

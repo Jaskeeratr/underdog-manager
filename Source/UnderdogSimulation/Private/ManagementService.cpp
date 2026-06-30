@@ -1,4 +1,6 @@
 #include "ManagementService.h"
+#include "FranchiseService.h"
+#include "StaffService.h"
 #include "DevelopmentService.h"
 #include "DeterministicRandom.h"
 
@@ -141,8 +143,12 @@ void FManagementService::ProcessTraining(FLeagueState& League)
 {
     for (FTeamState& Team : League.Teams)
     {
-        const int32 IntensityLoad = Team.TrainingPlan.Intensity == ETrainingIntensity::Recovery ? -10
+        const int32 MedicalLevel = FFranchiseService::GetFacilityLevel(Team, EFacilityType::MedicalCentre);
+        const int32 TrainingLevel = FFranchiseService::GetFacilityLevel(Team, EFacilityType::TrainingCentre);
+        const int32 BaseIntensityLoad = Team.TrainingPlan.Intensity == ETrainingIntensity::Recovery ? -10
             : Team.TrainingPlan.Intensity == ETrainingIntensity::High ? 7 : 2;
+        const int32 IntensityLoad = BaseIntensityLoad > 0
+            ? FMath::Max(0, BaseIntensityLoad - (MedicalLevel - 1)) : BaseIntensityLoad;
         for (FAthleteState& State : Team.PlayerStates)
         {
             State.Fatigue = FMath::Clamp(State.Fatigue + IntensityLoad, 0, 100);
@@ -156,8 +162,10 @@ void FManagementService::ProcessTraining(FLeagueState& League)
                 ^ (static_cast<uint64>(League.CurrentRound) << 24) ^ 0x545241494EULL;
             FDeterministicRandom Random(Seed);
             const int32 Chance = Team.TrainingPlan.Intensity == ETrainingIntensity::High
-                ? 1400 + Player->Ratings.WorkEthic * 10 : 650 + Player->Ratings.WorkEthic * 7;
-            if (Random.ChancePerTenThousand(Chance))
+                ? 1400 + Player->Ratings.WorkEthic * 10 + (TrainingLevel - 1) * 175
+                : 650 + Player->Ratings.WorkEthic * 7 + (TrainingLevel - 1) * 125;
+            if (Random.ChancePerTenThousand(FMath::Clamp(
+                Chance + FStaffService::GetDevelopmentBonus(Team), 250, 5000)))
             {
                 int32* Rating = RatingForFocus(Player->Ratings, Team.TrainingPlan.Focus, Random);
                 *Rating = FMath::Clamp(*Rating + 1, 1, 99);
@@ -177,8 +185,13 @@ void FManagementService::ProcessScouting(FLeagueState& League)
         FDeterministicRandom Random(static_cast<uint64>(League.LeagueSeed) ^ GetTypeHash(Player->PlayerId)
             ^ 0x53434F5554ULL);
         const int32 Overall = Player->Ratings.Overall();
-        const int32 OverallError = Random.Range(3, 6);
-        const int32 PotentialError = Random.Range(4, 8);
+        const FTeamState* RequestingTeam = League.Teams.FindByPredicate(
+            [&Assignment](const FTeamState& Team) { return Team.TeamId == Assignment.RequestedByTeamId; });
+        const int32 ScoutingLevel = RequestingTeam
+            ? FFranchiseService::GetFacilityLevel(*RequestingTeam, EFacilityType::ScoutingDepartment) : 1;
+        const int32 StaffBonus = RequestingTeam ? FStaffService::GetScoutingBonus(*RequestingTeam) : 0;
+        const int32 OverallError = FMath::Max(1, Random.Range(3, 6) - (ScoutingLevel - 1) - StaffBonus);
+        const int32 PotentialError = FMath::Max(2, Random.Range(4, 8) - (ScoutingLevel - 1) - StaffBonus);
         FScoutingReport Report;
         Report.AssignmentId = Assignment.AssignmentId;
         Report.RequestedByTeamId = Assignment.RequestedByTeamId;

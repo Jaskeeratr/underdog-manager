@@ -4,7 +4,7 @@ Underdog Manager is a C++-first basketball club-management game targeting Unreal
 
 ## Current implementation
 
-This repository currently contains the Gate 1 foundation:
+This repository contains a playable C++ management-game vertical slice through the Phase 10 release-candidate systems pass:
 
 - UE 5.8 project and runtime module boundaries
 - deterministic, versioned random number generator
@@ -20,6 +20,22 @@ This repository currently contains the Gate 1 foundation:
 - asynchronous save snapshots and schema validation
 - code-created ten-player highlight placeholder with skip support
 - Unreal automation tests for determinism, schedule integrity, match integrity, and soak simulation
+- native management screens for roster, schedule, standings, scouting, training, tactics, trades,
+  playoffs, awards, offseason, saves, league history, contracts, rivalries, Match Center, and post-game recap
+- multi-season progression with contracts, free agency, draft, development, chemistry, and AI management
+- deterministic highlight-cue generation and text-based match presentation
+- Phase 7 placeholder 3D broadcast playback with ten athletes, a ball, camera presets, scoreboard,
+  pause, skip, speed, and exit-to-recap controls
+- Phase 8 franchise operations with attendance, ticket pricing, game-day finances, fan support,
+  four facility tracks, owner objectives, and owner confidence
+- Phase 9 organization management with six staff roles, contracts, hiring, AI staffing,
+  tactical familiarity, and coaching effects on development, scouting, and medical outcomes
+- explainable trade evaluation with roster, salary-matching, package-size, and atomic-execution rules
+- high-contrast broadcast-inspired management shell with dedicated Staff & Coaching workflows
+- Phase 10 manager career progression with persistent records, season evaluations, reputation,
+  employment status, explainable job offers, and club movement
+- multi-season franchise settlement with media/commercial income and staff payroll accounting
+- save schema version 9 and a deterministic ten-season career/economy soak test
 
 The project deliberately does not include marketplace content. Assets must be selected, licensed, and recorded before the 3D feasibility gate can be approved.
 
@@ -43,7 +59,9 @@ The project is compiled and verified with Unreal Engine 5.8.0, MSVC 19.44, and W
 
 In the Unreal Editor, open **Tools > Test Automation**, search for `Underdog`, and run the suite.
 
-Current verification: all five `Underdog` automation tests pass under UE 5.8 with `-NullRHI`.
+Verified baseline: the UE 5.8 editor target builds successfully and all 45 registered `Underdog`
+automation tests pass headlessly with `-NullRHI`, including the ten-season Phase 10 career,
+roster, staff-payroll, and franchise-cash soak.
 
 For command-line verification:
 
@@ -54,15 +72,15 @@ For command-line verification:
   -unattended -nop4 -NullRHI -log
 ```
 
-## Gate 1 completion criteria
+## Phase 7 status
 
-Gate 1 is complete only after:
+The current Phase 7 implementation is a code-only technical foundation. It provides deterministic
+cue playback and broadcast controls using engine placeholder meshes. Production completion still requires:
 
-- the UE 5.8 editor target builds without warnings treated as errors;
-- all `Underdog` automation tests pass;
-- a placeholder court map stages made-shot, missed-shot, and turnover sequences;
-- all sequences can be skipped safely;
-- selected marketplace characters and animations share a compatible skeleton or retarget successfully;
-- a packaged Windows build reproduces the spike.
+- a dedicated arena map and authored court layout;
+- licensed athlete, uniform, ball, arena, animation, audio, and crowd assets;
+- event-specific staging paths and animation montages;
+- packaged-build performance profiling and clean-machine verification;
+- visual QA of every highlight template and camera transition.
 
 If the asset spike fails, the approved fallback is a 2D tactical match presentation.

@@ -38,6 +38,15 @@ FGameRecap FGameRecapService::BuildRecap(const FMatchResult& Result, const FMatc
     Recap.AwayTeamName = Snapshot.AwayTeam.City + TEXT(" ") + Snapshot.AwayTeam.Nickname;
     Recap.FinalHomeScore = Result.HomeScore;
     Recap.FinalAwayScore = Result.AwayScore;
+    const bool bHomeTeamWon = Result.HomeScore > Result.AwayScore;
+    const FString& Winner = bHomeTeamWon ? Recap.HomeTeamName : Recap.AwayTeamName;
+    const FString& Loser = bHomeTeamWon ? Recap.AwayTeamName : Recap.HomeTeamName;
+    const int32 WinnerScore = bHomeTeamWon ? Result.HomeScore : Result.AwayScore;
+    const int32 LoserScore = bHomeTeamWon ? Result.AwayScore : Result.HomeScore;
+    Recap.Headline = FString::Printf(TEXT("%s defeat %s, %d-%d"),
+        *Winner, *Loser, WinnerScore, LoserScore);
+    Recap.Summary = FString::Printf(TEXT("%s secured the result after %d period%s."),
+        *Winner, Result.PeriodsPlayed, Result.PeriodsPlayed == 1 ? TEXT("") : TEXT("s"));
 
     Recap.QuarterScores.SetNum(Result.PeriodsPlayed);
     int32 RunningHome = 0;

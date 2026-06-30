@@ -1,9 +1,12 @@
 #include "LeagueGameSubsystem.h"
 #include "ContractService.h"
+#include "CareerService.h"
 #include "FreeAgencyService.h"
+#include "FranchiseService.h"
 #include "GameRecapService.h"
 #include "HighlightDirectorService.h"
 #include "MatchPresentationService.h"
+#include "StaffService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
@@ -17,7 +20,10 @@ bool ULeagueGameSubsystem::StartNewLeague(int64 Seed, FString& OutError)
     FLeagueState Generated = FLeagueGenerator::Generate(static_cast<uint64>(Seed));
     if (!FLeagueGenerator::ValidateLeague(Generated, OutError)) { return false; }
     League = MoveTemp(Generated);
-    if (League.Teams.Num() > 0) { FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId); }
+    if (League.ManagerCareer.CurrentTeamId.IsValid())
+    {
+        FLeagueService::SetPlayerTeamId(League, League.ManagerCareer.CurrentTeamId);
+    }
     OnLeagueChanged.Broadcast();
     return true;
 }
@@ -92,7 +98,7 @@ bool ULeagueGameSubsystem::AdvanceOffseason(FString& OutError)
     if (!FOffseasonService::AdvanceOffseason(League, OutError)) { return false; }
     if (League.Phase == ESeasonPhase::RegularSeason)
     {
-        FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+        FLeagueService::SetPlayerTeamId(League, League.ManagerCareer.CurrentTeamId);
     }
     OnLeagueChanged.Broadcast();
     return true;
@@ -213,7 +219,10 @@ bool ULeagueGameSubsystem::LoadLeague(const FString& SlotName, FString& OutError
     }
     if (!FLeagueGenerator::ValidateLeague(Save->League, OutError)) { return false; }
     League = Save->League;
-    if (League.Teams.Num() > 0) { FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId); }
+    if (League.ManagerCareer.CurrentTeamId.IsValid())
+    {
+        FLeagueService::SetPlayerTeamId(League, League.ManagerCareer.CurrentTeamId);
+    }
     OnLeagueChanged.Broadcast();
     return true;
 }
@@ -234,5 +243,65 @@ bool ULeagueGameSubsystem::GetSaveSlotInfo(const FString& SlotName,
     OutTeamName = Save->League.Teams.Num() > 0
         ? Save->League.Teams[0].City + TEXT(" ") + Save->League.Teams[0].Nickname : TEXT("Unknown");
     OutSavedAt = Save->SavedAtUtc;
+    return true;
+}
+
+FFranchiseState ULeagueGameSubsystem::GetFranchiseState(const FGuid& TeamId) const
+{
+    const FTeamState* Team = League.Teams.FindByPredicate(
+        [&TeamId](const FTeamState& Candidate) { return Candidate.TeamId == TeamId; });
+    return Team ? Team->Franchise : FFranchiseState();
+}
+
+bool ULeagueGameSubsystem::SetTicketPrice(const FGuid& TeamId,
+    int64 TicketPriceMinorUnits, FString& OutError)
+{
+    if (!FFranchiseService::SetTicketPrice(League, TeamId, TicketPriceMinorUnits, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::UpgradeFacility(const FGuid& TeamId,
+    EFacilityType Type, FString& OutError)
+{
+    if (!FFranchiseService::UpgradeFacility(League, TeamId, Type, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+int64 ULeagueGameSubsystem::GetFacilityUpgradeCost(const FGuid& TeamId, EFacilityType Type) const
+{
+    const FTeamState* Team = League.Teams.FindByPredicate(
+        [&TeamId](const FTeamState& Candidate) { return Candidate.TeamId == TeamId; });
+    return Team ? FFranchiseService::GetFacilityUpgradeCost(*Team, Type) : 0;
+}
+
+bool ULeagueGameSubsystem::HireStaff(const FGuid& TeamId, const FGuid& StaffId,
+    int64 OfferedSalary, int32 OfferedYears, FString& OutError)
+{
+    if (!FStaffService::HireStaff(League, TeamId, StaffId, OfferedSalary, OfferedYears, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::FireStaff(const FGuid& TeamId, EStaffRole Role, FString& OutError)
+{
+    if (!FStaffService::FireStaff(League, TeamId, Role, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::AcceptManagerJob(const FGuid& TeamId, FString& OutError)
+{
+    if (!FCareerService::AcceptJobOffer(League, TeamId, OutError)) { return false; }
+    FLeagueService::SetPlayerTeamId(League, TeamId);
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+bool ULeagueGameSubsystem::SetManagerName(const FString& ManagerName, FString& OutError)
+{
+    if (!FCareerService::SetManagerName(League, ManagerName, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
     return true;
 }

@@ -14,6 +14,20 @@ int32 FPlayerRatings::Overall() const
     return FMath::RoundToInt(static_cast<double>(Total) / 8.0);
 }
 
+int32 FStaffRatings::OverallForRole(EStaffRole Role) const
+{
+    switch (Role)
+    {
+    case EStaffRole::HeadCoach: return (Offense + Defense + Motivation + TacticalFlexibility) / 4;
+    case EStaffRole::OffensiveCoach: return (Offense * 2 + Development + TacticalFlexibility) / 4;
+    case EStaffRole::DefensiveCoach: return (Defense * 2 + Development + TacticalFlexibility) / 4;
+    case EStaffRole::DevelopmentCoach: return (Development * 2 + Motivation + TacticalFlexibility) / 4;
+    case EStaffRole::HeadScout: return (Scouting * 3 + TacticalFlexibility) / 4;
+    case EStaffRole::MedicalDirector: return (Medical * 3 + Motivation) / 4;
+    default: return 50;
+    }
+}
+
 bool FRotationPlan::IsValid(FString& OutError) const
 {
     if (OrderedPlayers.Num() < 5 || OrderedPlayers.Num() > 15)

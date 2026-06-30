@@ -10,6 +10,7 @@ public:
         const TArray<FGuid>& OutgoingPlayerIds, const FGuid& ReceivingTeamId,
         const TArray<FGuid>& IncomingPlayerIds, FString& OutError);
     static bool EvaluateTrade(const FLeagueState& League, const FTradeOffer& Offer);
+    static FTradeEvaluation EvaluateTradeDetailed(const FLeagueState& League, const FTradeOffer& Offer);
     static bool ExecuteTrade(FLeagueState& League, const FGuid& TradeId, FString& OutError);
     static int32 CalculatePlayerValue(const FPlayerProfile& Player, const FAthleteState& State);
     static void ExpireDeadlineTrades(FLeagueState& League);

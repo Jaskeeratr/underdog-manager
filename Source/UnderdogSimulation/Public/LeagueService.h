@@ -12,9 +12,9 @@ public:
     static bool GeneratePlayoffBracket(FLeagueState& League, FString& OutError);
     static bool AdvancePlayoffs(FLeagueState& League, TArray<FMatchResult>& OutResults, FString& OutError);
     static void SetPlayerTeamId(FLeagueState& League, const FGuid& TeamId);
+    static bool BuildSnapshot(const FLeagueState& League, const FScheduledGame& Game, FMatchSnapshot& OutSnapshot, FString& OutError);
 
 private:
-    static bool BuildSnapshot(const FLeagueState& League, const FScheduledGame& Game, FMatchSnapshot& OutSnapshot, FString& OutError);
     static void ApplyResult(FLeagueState& League, FScheduledGame& Game, const FMatchResult& Result);
     static void ApplyPlayerConsequences(FTeamState& Team, const TArray<FPlayerBoxScore>& BoxScore, bool bWon, uint64 Seed);
     static FGuid PlayerTeamId;

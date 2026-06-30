@@ -7,6 +7,9 @@
 #include "AwardsService.h"
 #include "TradeService.h"
 #include "RivalryService.h"
+#include "FranchiseService.h"
+#include "StaffService.h"
+#include "CareerService.h"
 
 FGuid FLeagueService::PlayerTeamId;
 
@@ -78,7 +81,10 @@ void FLeagueService::ApplyPlayerConsequences(
         const FPlayerProfile* Profile = Team.Players.FindByPredicate(
             [&State](const FPlayerProfile& Candidate) { return Candidate.PlayerId == State.PlayerId; });
         const int32 Stamina = Profile ? Profile->Ratings.Stamina : 50;
-        const int32 InjuryRisk = FMath::Clamp((State.Fatigue * State.Fatigue) / 8 + FMath::Max(0, 60 - Stamina) * 8, 0, 1800);
+        const int32 MedicalLevel = FFranchiseService::GetFacilityLevel(Team, EFacilityType::MedicalCentre);
+        const int32 InjuryRisk = FMath::Clamp((State.Fatigue * State.Fatigue) / 8
+            + FMath::Max(0, 60 - Stamina) * 8 - (MedicalLevel - 1) * 100
+            - FStaffService::GetMedicalBonus(Team), 0, 1800);
         if (Minutes > 0 && Random.ChancePerTenThousand(InjuryRisk))
         {
             State.InjuryGamesRemaining = Random.Range(1, State.Fatigue > 75 ? 5 : 3);
@@ -117,6 +123,8 @@ void FLeagueService::ApplyResult(FLeagueState& League, FScheduledGame& Game, con
     const int32 ScoreDiff = Result.HomeScore - Result.AwayScore;
     const bool bIsPlayoff = Game.Round >= 22;
     FRivalryService::UpdateAfterGame(League, Game.HomeTeamId, Game.AwayTeamId, ScoreDiff, bIsPlayoff);
+    FFranchiseService::ProcessCompletedGame(League, Result);
+    FCareerService::RecordGame(League, Result);
 }
 
 bool FLeagueService::SimulateGame(FLeagueState& League, const FGuid& GameId, FMatchResult& OutResult, FString& OutError)
@@ -226,18 +234,22 @@ TArray<FTeamState> FLeagueService::GetStandings(const FLeagueState& League)
 bool FLeagueService::GeneratePlayoffBracket(FLeagueState& League, FString& OutError)
 {
     const TArray<FTeamState> Standings = GetStandings(League);
-    if (Standings.Num() < 8)
+    if (Standings.Num() < 4)
     {
-        OutError = TEXT("At least eight teams are required for playoffs.");
+        OutError = TEXT("At least four teams are required for playoffs.");
         return false;
     }
+
+    // Keep playoff schedule appends from reallocating while match and series state
+    // are being advanced. A best-of-three four-team bracket needs at most 9 games.
+    League.Schedule.Reserve(League.Schedule.Num() + 12);
 
     FDeterministicRandom Random(static_cast<uint64>(League.LeagueSeed) ^ 0x504C594F4646ULL);
     League.Playoffs = FPlayoffBracket();
     League.Playoffs.CurrentPlayoffRound = 0;
 
-    const int32 Matchups[4][2] = { {0, 7}, {3, 4}, {1, 6}, {2, 5} };
-    for (int32 Slot = 0; Slot < 4; ++Slot)
+    const int32 Matchups[2][2] = { {0, 3}, {1, 2} };
+    for (int32 Slot = 0; Slot < 2; ++Slot)
     {
         FPlayoffSeries Series;
         Series.SeriesId = FGuid(Random.NextUInt32(), Random.NextUInt32(), Random.NextUInt32(), Random.NextUInt32());
@@ -265,11 +277,12 @@ bool FLeagueService::AdvancePlayoffs(FLeagueState& League, TArray<FMatchResult>&
 
     FDeterministicRandom Random(static_cast<uint64>(League.LeagueSeed)
         ^ (static_cast<uint64>(League.Playoffs.CurrentPlayoffRound) << 16)
+        ^ (static_cast<uint64>(League.Schedule.Num()) * 0x9E3779B97F4A7C15ULL)
         ^ 0x504F535453ULL);
 
-    bool bAllCurrentRoundComplete = true;
-    for (FPlayoffSeries& Series : League.Playoffs.Series)
+    for (int32 SeriesIndex = 0; SeriesIndex < League.Playoffs.Series.Num(); ++SeriesIndex)
     {
+        FPlayoffSeries& Series = League.Playoffs.Series[SeriesIndex];
         if (Series.PlayoffRound != League.Playoffs.CurrentPlayoffRound || Series.bComplete) { continue; }
 
         const bool bHigherSeedHome = (Series.GamesPlayed() % 2 == 0);
@@ -284,28 +297,29 @@ bool FLeagueService::AdvancePlayoffs(FLeagueState& League, TArray<FMatchResult>&
         League.Schedule.Add(PlayoffGame);
 
         FMatchResult Result;
-        if (!SimulateGame(League, PlayoffGame.GameId, Result, OutError)) { return false; }
+        if (!SimulateGame(League, PlayoffGame.GameId, Result, OutError))
+        {
+            League.Schedule.RemoveAt(League.Schedule.Num() - 1);
+            return false;
+        }
         OutResults.Add(Result);
 
-        Series.GameIds.Add(PlayoffGame.GameId);
+        FPlayoffSeries& UpdatedSeries = League.Playoffs.Series[SeriesIndex];
+        UpdatedSeries.GameIds.Add(PlayoffGame.GameId);
         if (Result.HomeScore > Result.AwayScore)
         {
-            if (HomeId == Series.HigherSeedTeamId) { Series.HigherSeedWins++; }
-            else { Series.LowerSeedWins++; }
+            if (HomeId == UpdatedSeries.HigherSeedTeamId) { UpdatedSeries.HigherSeedWins++; }
+            else { UpdatedSeries.LowerSeedWins++; }
         }
         else
         {
-            if (AwayId == Series.HigherSeedTeamId) { Series.HigherSeedWins++; }
-            else { Series.LowerSeedWins++; }
+            if (AwayId == UpdatedSeries.HigherSeedTeamId) { UpdatedSeries.HigherSeedWins++; }
+            else { UpdatedSeries.LowerSeedWins++; }
         }
 
-        if (Series.HigherSeedWins >= 4 || Series.LowerSeedWins >= 4)
+        if (UpdatedSeries.HigherSeedWins >= 2 || UpdatedSeries.LowerSeedWins >= 2)
         {
-            Series.bComplete = true;
-        }
-        else
-        {
-            bAllCurrentRoundComplete = false;
+            UpdatedSeries.bComplete = true;
         }
     }
 

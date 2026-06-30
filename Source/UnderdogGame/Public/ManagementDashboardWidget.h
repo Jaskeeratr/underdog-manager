@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "UnderdogCoreTypes.h"
 #include "ManagementDashboardWidget.generated.h"
 
 class UBorder;
@@ -15,7 +16,6 @@ struct FMatchResult;
 struct FMatchSnapshot;
 struct FPlayoffBracket;
 struct FSeasonAward;
-struct FMatchPresentationPackage;
 enum class ETrainingFocus : uint8;
 enum class ETrainingIntensity : uint8;
 enum class EPaceStyle : uint8;
@@ -27,6 +27,9 @@ UCLASS()
 class UNDERDOGGAME_API UManagementDashboardWidget : public UUserWidget
 {
     GENERATED_BODY()
+
+public:
+    void ReturnFromBroadcast();
 
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
@@ -64,6 +67,9 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> RivalriesList;
     UPROPERTY() TObjectPtr<UVerticalBox> MatchCenterList;
     UPROPERTY() TObjectPtr<UVerticalBox> PostGameList;
+    UPROPERTY() TObjectPtr<UVerticalBox> FranchiseList;
+    UPROPERTY() TObjectPtr<UVerticalBox> StaffList;
+    UPROPERTY() TObjectPtr<UVerticalBox> CareerList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
@@ -77,6 +83,8 @@ private:
 
     TArray<int32> DisplayedDraftIndices;
     TArray<FGuid> DisplayedExtensionPlayerIds;
+    TArray<FGuid> DisplayedStaffCandidateIds;
+    TArray<FGuid> DisplayedJobOfferTeamIds;
     FGuid PendingMatchGameId;
     FMatchPresentationPackage LastPresentation;
 
@@ -106,6 +114,9 @@ private:
     void OfferExtensionAtSlot(int32 Slot);
     void RefreshMatchCenterScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshPostGameScreen();
+    void RefreshFranchiseScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshStaffScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshCareerScreen(const FLeagueState& League);
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
     void ApplyTactics(EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding);
@@ -116,6 +127,17 @@ private:
     void SaveToSlot(int32 Slot);
     void LoadFromSlot(int32 Slot);
     void ExecuteSimulateRound();
+    void BindTeamButton(UButton* Button, int32 Index);
+    void BindOutgoingButton(UButton* Button, int32 Index);
+    void BindIncomingButton(UButton* Button, int32 Index);
+    void BindDraftButton(UButton* Button, int32 Index);
+    void BindSaveButton(UButton* Button, int32 Index);
+    void BindLoadButton(UButton* Button, int32 Index);
+    void BindExtensionButton(UButton* Button, int32 Index);
+    void BindStaffHireButton(UButton* Button, int32 Index);
+    void HireStaffAtSlot(int32 Index);
+    void AcceptJobAtSlot(int32 Index);
+    void UpgradeFranchiseFacility(EFacilityType Type);
 
     UFUNCTION() void HandleSimulateRound();
     UFUNCTION() void ShowOverview();
@@ -136,8 +158,26 @@ private:
     UFUNCTION() void ShowRivalries();
     UFUNCTION() void ShowMatchCenter();
     UFUNCTION() void ShowPostGame();
+    UFUNCTION() void ShowFranchise();
+    UFUNCTION() void ShowStaff();
+    UFUNCTION() void ShowCareer();
     UFUNCTION() void HandleWatchHighlights();
     UFUNCTION() void HandleInstantResult();
+    UFUNCTION() void HandleTicketPriceDown();
+    UFUNCTION() void HandleTicketPriceUp();
+    UFUNCTION() void HandleUpgradeTraining();
+    UFUNCTION() void HandleUpgradeMedical();
+    UFUNCTION() void HandleUpgradeScouting();
+    UFUNCTION() void HandleUpgradeArena();
+    UFUNCTION() void HandleHireStaff0();
+    UFUNCTION() void HandleHireStaff1();
+    UFUNCTION() void HandleHireStaff2();
+    UFUNCTION() void HandleHireStaff3();
+    UFUNCTION() void HandleHireStaff4();
+    UFUNCTION() void HandleHireStaff5();
+    UFUNCTION() void HandleAcceptJob0();
+    UFUNCTION() void HandleAcceptJob1();
+    UFUNCTION() void HandleAcceptJob2();
     UFUNCTION() void HandleAdvanceOffseason();
     UFUNCTION() void HandleSignFreeAgent();
     UFUNCTION() void HandleBuildTrade();

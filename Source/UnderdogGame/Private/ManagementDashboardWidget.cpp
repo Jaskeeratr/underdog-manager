@@ -3,13 +3,16 @@
 #include "CommentaryService.h"
 #include "ContractService.h"
 #include "GameRecapService.h"
+#include "FranchiseService.h"
 #include "HighlightDirectorService.h"
 #include "LeagueGameSubsystem.h"
 #include "LeagueHistoryService.h"
 #include "MatchPresentationService.h"
 #include "RivalryService.h"
+#include "TradeService.h"
 #include "LeagueService.h"
 #include "UnderdogCoreTypes.h"
+#include "UnderdogPlayerController.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -17,6 +20,8 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
+#include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -25,15 +30,15 @@
 
 namespace DashboardStyle
 {
-    const FLinearColor Background(0.018f, 0.027f, 0.043f, 1.0f);
-    const FLinearColor Sidebar(0.030f, 0.043f, 0.064f, 1.0f);
-    const FLinearColor Card(0.045f, 0.062f, 0.086f, 1.0f);
-    const FLinearColor CardRaised(0.060f, 0.080f, 0.108f, 1.0f);
-    const FLinearColor Accent(0.96f, 0.55f, 0.12f, 1.0f);
-    const FLinearColor AccentSoft(0.30f, 0.17f, 0.06f, 1.0f);
-    const FLinearColor Primary(0.94f, 0.96f, 0.98f, 1.0f);
-    const FLinearColor Secondary(0.55f, 0.63f, 0.72f, 1.0f);
-    const FLinearColor Success(0.27f, 0.82f, 0.55f, 1.0f);
+    const FLinearColor Background(0.009f, 0.011f, 0.015f, 1.0f);
+    const FLinearColor Sidebar(0.018f, 0.021f, 0.027f, 1.0f);
+    const FLinearColor Card(0.031f, 0.035f, 0.043f, 1.0f);
+    const FLinearColor CardRaised(0.052f, 0.057f, 0.068f, 1.0f);
+    const FLinearColor Accent(0.94f, 0.10f, 0.16f, 1.0f);
+    const FLinearColor AccentSoft(0.26f, 0.025f, 0.045f, 1.0f);
+    const FLinearColor Primary(0.97f, 0.975f, 0.985f, 1.0f);
+    const FLinearColor Secondary(0.58f, 0.61f, 0.67f, 1.0f);
+    const FLinearColor Success(0.10f, 0.82f, 0.68f, 1.0f);
 
     FSlateChildSize Size(float Value, ESlateSizeRule::Type Rule = ESlateSizeRule::Fill)
     {
@@ -83,7 +88,7 @@ UBorder* UManagementDashboardWidget::MakeCard(const FLinearColor& Color)
 {
     UBorder* CardWidget = WidgetTree->ConstructWidget<UBorder>();
     CardWidget->SetBrushColor(Color);
-    CardWidget->SetPadding(FMargin(20.0f));
+    CardWidget->SetPadding(FMargin(16.0f));
     return CardWidget;
 }
 
@@ -91,10 +96,11 @@ UButton* UManagementDashboardWidget::MakeNavigationButton(const FString& Label, 
 {
     UButton* Button = WidgetTree->ConstructWidget<UButton>();
     Button->SetBackgroundColor(bActive ? DashboardStyle::AccentSoft : DashboardStyle::Sidebar);
-    UTextBlock* LabelText = MakeText(Label, 14,
+    UTextBlock* LabelText = MakeText(Label, 11,
         bActive ? DashboardStyle::Accent : DashboardStyle::Secondary, bActive);
     LabelText->SetJustification(ETextJustify::Left);
     Button->SetContent(LabelText);
+    Button->SetToolTipText(FText::FromString(FString::Printf(TEXT("Open %s"), *Label)));
     return Button;
 }
 
@@ -107,6 +113,15 @@ void UManagementDashboardWidget::BuildLayout()
     Background->SetBrushColor(DashboardStyle::Background);
     Root->AddChildToOverlay(Background);
 
+    USizeBox* AccentRail = WidgetTree->ConstructWidget<USizeBox>();
+    AccentRail->SetHeightOverride(5.0f);
+    UBorder* AccentFill = WidgetTree->ConstructWidget<UBorder>();
+    AccentFill->SetBrushColor(DashboardStyle::Accent);
+    AccentRail->SetContent(AccentFill);
+    UOverlaySlot* AccentSlot = Root->AddChildToOverlay(AccentRail);
+    AccentSlot->SetHorizontalAlignment(HAlign_Fill);
+    AccentSlot->SetVerticalAlignment(VAlign_Top);
+
     UHorizontalBox* Shell = WidgetTree->ConstructWidget<UHorizontalBox>();
     UOverlaySlot* ShellOverlaySlot = Root->AddChildToOverlay(Shell);
     ShellOverlaySlot->SetHorizontalAlignment(HAlign_Fill);
@@ -116,18 +131,22 @@ void UManagementDashboardWidget::BuildLayout()
     Sidebar->SetBrushColor(DashboardStyle::Sidebar);
     Sidebar->SetPadding(FMargin(20.0f, 28.0f));
     UHorizontalBoxSlot* SidebarSlot = Shell->AddChildToHorizontalBox(Sidebar);
-    SidebarSlot->SetSize(DashboardStyle::Size(0.19f));
+    SidebarSlot->SetSize(DashboardStyle::Size(0.17f));
 
+    UScrollBox* NavigationScroll = WidgetTree->ConstructWidget<UScrollBox>();
+    NavigationScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
+    Sidebar->SetContent(NavigationScroll);
     UVerticalBox* NavigationBox = WidgetTree->ConstructWidget<UVerticalBox>();
-    Sidebar->SetContent(NavigationBox);
-    NavigationBox->AddChildToVerticalBox(MakeText(TEXT("UNDERDOG"), 25, DashboardStyle::Primary, true));
-    NavigationBox->AddChildToVerticalBox(MakeText(TEXT("BASKETBALL OPERATIONS"), 9, DashboardStyle::Accent, true))
-        ->SetPadding(FMargin(0.0f, 3.0f, 0.0f, 34.0f));
+    NavigationScroll->AddChild(NavigationBox);
+    NavigationBox->AddChildToVerticalBox(MakeText(TEXT("UNDERDOG"), 28, DashboardStyle::Primary, true));
+    NavigationBox->AddChildToVerticalBox(MakeText(TEXT("FRANCHISE COMMAND"), 9, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 22.0f));
 
     const FString Labels[] = { TEXT("OVERVIEW"), TEXT("ROSTER"), TEXT("SCHEDULE"),
         TEXT("STANDINGS"), TEXT("SCOUTING"), TEXT("TRAINING"), TEXT("TACTICS"),
         TEXT("TRADES"), TEXT("PLAYOFFS"), TEXT("AWARDS"), TEXT("OFFSEASON"), TEXT("SAVE / LOAD"),
-        TEXT("GAME RECAP"), TEXT("HISTORY"), TEXT("CONTRACTS"), TEXT("RIVALRIES") };
+        TEXT("GAME RECAP"), TEXT("HISTORY"), TEXT("CONTRACTS"), TEXT("RIVALRIES"), TEXT("FRONT OFFICE"),
+        TEXT("STAFF & COACHING"), TEXT("MANAGER CAREER") };
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Labels); ++Index)
     {
         UButton* NavigationButton = MakeNavigationButton(Labels[Index], Index == 0);
@@ -149,15 +168,18 @@ void UManagementDashboardWidget::BuildLayout()
         case 13: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowHistory); break;
         case 14: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowContracts); break;
         case 15: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowRivalries); break;
+        case 16: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowFranchise); break;
+        case 17: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowStaff); break;
+        case 18: NavigationButton->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowCareer); break;
         default: break;
         }
-        NavigationBox->AddChildToVerticalBox(NavigationButton)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+        NavigationBox->AddChildToVerticalBox(NavigationButton)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
     }
 
     ScreenSwitcher = WidgetTree->ConstructWidget<UWidgetSwitcher>();
     UHorizontalBoxSlot* SwitcherSlot = Shell->AddChildToHorizontalBox(ScreenSwitcher);
-    SwitcherSlot->SetSize(DashboardStyle::Size(0.81f));
-    SwitcherSlot->SetPadding(FMargin(34.0f, 26.0f, 34.0f, 24.0f));
+    SwitcherSlot->SetSize(DashboardStyle::Size(0.83f));
+    SwitcherSlot->SetPadding(FMargin(30.0f, 30.0f, 34.0f, 24.0f));
 
     UVerticalBox* Main = WidgetTree->ConstructWidget<UVerticalBox>();
     ScreenSwitcher->AddChild(Main);
@@ -191,9 +213,9 @@ void UManagementDashboardWidget::BuildLayout()
         Content->AddChildToVerticalBox(MakeText(Label, 9, DashboardStyle::Secondary, true));
         Value = MakeText(TEXT("—"), 24, ValueColor, true);
         Content->AddChildToVerticalBox(Value)->SetPadding(FMargin(0.0f, 6.0f, 0.0f, 0.0f));
-        UHorizontalBoxSlot* Slot = Metrics->AddChildToHorizontalBox(CardWidget);
-        Slot->SetSize(DashboardStyle::Size(1.0f));
-        Slot->SetPadding(FMargin(0.0f, 0.0f, 12.0f, 0.0f));
+        UHorizontalBoxSlot* MetricSlot = Metrics->AddChildToHorizontalBox(CardWidget);
+        MetricSlot->SetSize(DashboardStyle::Size(1.0f));
+        MetricSlot->SetPadding(FMargin(0.0f, 0.0f, 12.0f, 0.0f));
     };
     AddMetric(TEXT("SEASON RECORD"), RecordText, DashboardStyle::Primary);
     AddMetric(TEXT("CHEMISTRY"), ChemistryText, DashboardStyle::Accent);
@@ -251,7 +273,7 @@ void UManagementDashboardWidget::BuildLayout()
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("TRANSACTIONS"), TEXT("Trade Centre"),
         TEXT("Propose trades with other teams. The trade deadline is round 16."), TradeList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("POSTSEASON"), TEXT("Playoff Bracket"),
-        TEXT("Top eight teams compete in best-of-seven series to determine the champion."), PlayoffList));
+        TEXT("The top four teams compete in best-of-three semifinals and finals."), PlayoffList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("RESULTS"), TEXT("Round Results"),
         TEXT("Box scores and outcomes from the most recent round of games."), ResultsList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("RECOGNITION"), TEXT("Season Awards"),
@@ -272,6 +294,12 @@ void UManagementDashboardWidget::BuildLayout()
         TEXT("Pre-game analysis. Choose to watch highlights or get the instant result."), MatchCenterList));
     ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("POST-GAME"), TEXT("Recap"),
         TEXT("Full box score, highlight reel, and quarter-by-quarter breakdown."), PostGameList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("FRANCHISE OPERATIONS"), TEXT("Front Office"),
+        TEXT("Control ticket pricing, facilities, fan support, finances, and owner expectations."), FranchiseList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("BASKETBALL OPERATIONS"), TEXT("Staff & Coaching"),
+        TEXT("Build a coaching team whose strengths shape tactics, development, scouting, and player health."), StaffList));
+    ScreenSwitcher->AddChild(MakeDetailScreen(TEXT("LEGACY"), TEXT("Manager Career"),
+        TEXT("Track your record, job security, championships, club history, and available opportunities."), CareerList));
 }
 
 UVerticalBox* UManagementDashboardWidget::MakeDetailScreen(const FString& Eyebrow, const FString& Title,
@@ -475,6 +503,9 @@ void UManagementDashboardWidget::RefreshDashboard()
     RefreshRivalriesScreen(League, Club);
     RefreshMatchCenterScreen(League, Club);
     RefreshPostGameScreen();
+    RefreshFranchiseScreen(League, Club);
+    RefreshStaffScreen(League, Club);
+    RefreshCareerScreen(League);
 }
 
 void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League, const FTeamState& Club)
@@ -810,6 +841,9 @@ void UManagementDashboardWidget::ShowContracts() { SetScreen(15); }
 void UManagementDashboardWidget::ShowRivalries() { SetScreen(16); }
 void UManagementDashboardWidget::ShowMatchCenter() { SetScreen(17); }
 void UManagementDashboardWidget::ShowPostGame() { SetScreen(18); }
+void UManagementDashboardWidget::ShowFranchise() { SetScreen(19); }
+void UManagementDashboardWidget::ShowStaff() { SetScreen(20); }
+void UManagementDashboardWidget::ShowCareer() { SetScreen(21); }
 
 void UManagementDashboardWidget::HandleAutoRotation()
 {
@@ -855,13 +889,6 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
 
     if (bOpen)
     {
-        typedef void (UManagementDashboardWidget::*FTeamHandler)();
-        const FTeamHandler TeamHandlers[] = {
-            &UManagementDashboardWidget::HandleTeam0, &UManagementDashboardWidget::HandleTeam1,
-            &UManagementDashboardWidget::HandleTeam2, &UManagementDashboardWidget::HandleTeam3,
-            &UManagementDashboardWidget::HandleTeam4, &UManagementDashboardWidget::HandleTeam5,
-            &UManagementDashboardWidget::HandleTeam6, &UManagementDashboardWidget::HandleTeam7 };
-
         if (!SelectedTradeTeamId.IsValid())
         {
             TradeList->AddChildToVerticalBox(MakeText(TEXT("SELECT TRADE PARTNER"), 10,
@@ -877,7 +904,7 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
                 TeamBtn->SetContent(MakeText(FString::Printf(TEXT("%s %s  •  %d-%d  •  %d players"),
                     *Team.City, *Team.Nickname, Team.Wins, Team.Losses, Team.Players.Num()),
                     11, DashboardStyle::Primary, true));
-                TeamBtn->OnClicked.AddDynamic(this, TeamHandlers[Shown]);
+                BindTeamButton(TeamBtn, Shown);
                 TradeList->AddChildToVerticalBox(TeamBtn)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
                 Shown++;
             }
@@ -898,18 +925,6 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
             ClearBtn->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleClearTrade);
             TradeList->AddChildToVerticalBox(ClearBtn)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
 
-            typedef void (UManagementDashboardWidget::*FSlotHandler)();
-            const FSlotHandler OutHandlers[] = {
-                &UManagementDashboardWidget::HandleOut0, &UManagementDashboardWidget::HandleOut1,
-                &UManagementDashboardWidget::HandleOut2, &UManagementDashboardWidget::HandleOut3,
-                &UManagementDashboardWidget::HandleOut4, &UManagementDashboardWidget::HandleOut5,
-                &UManagementDashboardWidget::HandleOut6, &UManagementDashboardWidget::HandleOut7 };
-            const FSlotHandler InHandlers[] = {
-                &UManagementDashboardWidget::HandleIn0, &UManagementDashboardWidget::HandleIn1,
-                &UManagementDashboardWidget::HandleIn2, &UManagementDashboardWidget::HandleIn3,
-                &UManagementDashboardWidget::HandleIn4, &UManagementDashboardWidget::HandleIn5,
-                &UManagementDashboardWidget::HandleIn6, &UManagementDashboardWidget::HandleIn7 };
-
             TradeList->AddChildToVerticalBox(MakeText(TEXT("YOUR PLAYERS  •  CLICK TO OFFER"), 10,
                 DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
             DisplayedOutgoingIds.Reset();
@@ -924,7 +939,7 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
                     bSelected ? TEXT("[SEND] ") : TEXT(""),
                     *P.DisplayName, *DashboardStyle::Position(P.Position), P.Ratings.Overall()),
                     10, bSelected ? DashboardStyle::Accent : DashboardStyle::Primary, bSelected));
-                Btn->OnClicked.AddDynamic(this, OutHandlers[Idx]);
+                BindOutgoingButton(Btn, Idx);
                 TradeList->AddChildToVerticalBox(Btn)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
             }
 
@@ -942,18 +957,50 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
                     bSelected ? TEXT("[GET] ") : TEXT(""),
                     *P.DisplayName, *DashboardStyle::Position(P.Position), P.Ratings.Overall()),
                     10, bSelected ? DashboardStyle::Accent : DashboardStyle::Primary, bSelected));
-                Btn->OnClicked.AddDynamic(this, InHandlers[Idx]);
+                BindIncomingButton(Btn, Idx);
                 TradeList->AddChildToVerticalBox(Btn)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 2.0f));
             }
 
             if (TradeOutgoingPlayerIds.Num() > 0 && TradeIncomingPlayerIds.Num() > 0)
             {
+                FTradeOffer PreviewOffer;
+                PreviewOffer.ProposingTeamId = Club.TeamId;
+                PreviewOffer.ReceivingTeamId = Partner->TeamId;
+                for (const FGuid& Id : TradeOutgoingPlayerIds)
+                {
+                    FTradeAsset Asset; Asset.PlayerId = Id; Asset.FromTeamId = Club.TeamId;
+                    PreviewOffer.Outgoing.Add(Asset);
+                }
+                for (const FGuid& Id : TradeIncomingPlayerIds)
+                {
+                    FTradeAsset Asset; Asset.PlayerId = Id; Asset.FromTeamId = Partner->TeamId;
+                    PreviewOffer.Incoming.Add(Asset);
+                }
+                const FTradeEvaluation Evaluation = FTradeService::EvaluateTradeDetailed(League, PreviewOffer);
+                UBorder* EvaluationCard = MakeCard(Evaluation.bAccepted
+                    ? FLinearColor(0.02f, 0.18f, 0.14f, 1.0f) : DashboardStyle::AccentSoft);
+                EvaluationCard->SetPadding(FMargin(12.0f, 9.0f));
+                UVerticalBox* EvaluationContent = WidgetTree->ConstructWidget<UVerticalBox>();
+                EvaluationCard->SetContent(EvaluationContent);
+                EvaluationContent->AddChildToVerticalBox(MakeText(Evaluation.Summary, 11,
+                    Evaluation.bAccepted ? DashboardStyle::Success : DashboardStyle::Accent, true));
+                EvaluationContent->AddChildToVerticalBox(MakeText(FString::Printf(
+                    TEXT("YOU RECEIVE %d VALUE  |  THEY RECEIVE %d VALUE  |  SALARY CHANGE %+.1fM"),
+                    Evaluation.ProposerReceivesValue, Evaluation.ReceiverReceivesValue,
+                    Evaluation.ProposerSalaryChange / 100000000.0), 9, DashboardStyle::Secondary));
+                for (const FString& Reason : Evaluation.Reasons)
+                {
+                    EvaluationContent->AddChildToVerticalBox(MakeText(TEXT("- ") + Reason, 9, DashboardStyle::Secondary));
+                }
+                TradeList->AddChildToVerticalBox(EvaluationCard)->SetPadding(FMargin(0.0f, 12.0f, 0.0f, 5.0f));
+
                 UButton* ProposeBtn = WidgetTree->ConstructWidget<UButton>();
                 ProposeBtn->SetBackgroundColor(DashboardStyle::Accent);
                 ProposeBtn->SetContent(MakeText(FString::Printf(TEXT("PROPOSE TRADE  •  %d FOR %d"),
                     TradeOutgoingPlayerIds.Num(), TradeIncomingPlayerIds.Num()),
                     11, DashboardStyle::Background, true));
                 ProposeBtn->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleBuildTrade);
+                ProposeBtn->SetIsEnabled(Evaluation.bLegal);
                 TradeList->AddChildToVerticalBox(ProposeBtn)->SetPadding(FMargin(0.0f, 12.0f, 0.0f, 0.0f));
             }
         }
@@ -1192,11 +1239,100 @@ void UManagementDashboardWidget::HandleClearTrade()
     SetScreen(7);
 }
 
-void UManagementDashboardWidget::SelectTradeTeamAtSlot(int32 Slot)
+void UManagementDashboardWidget::BindTeamButton(UButton* Button, int32 Index)
 {
-    if (Slot < DisplayedTeamIds.Num())
+    switch (Index) {
+    case 0: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam0); break;
+    case 1: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam1); break;
+    case 2: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam2); break;
+    case 3: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam3); break;
+    case 4: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam4); break;
+    case 5: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam5); break;
+    case 6: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam6); break;
+    case 7: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTeam7); break;
+    default: break;
+    }
+}
+
+void UManagementDashboardWidget::BindOutgoingButton(UButton* Button, int32 Index)
+{
+    switch (Index) {
+    case 0: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut0); break;
+    case 1: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut1); break;
+    case 2: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut2); break;
+    case 3: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut3); break;
+    case 4: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut4); break;
+    case 5: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut5); break;
+    case 6: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut6); break;
+    case 7: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleOut7); break;
+    default: break;
+    }
+}
+
+void UManagementDashboardWidget::BindIncomingButton(UButton* Button, int32 Index)
+{
+    switch (Index) {
+    case 0: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn0); break;
+    case 1: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn1); break;
+    case 2: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn2); break;
+    case 3: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn3); break;
+    case 4: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn4); break;
+    case 5: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn5); break;
+    case 6: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn6); break;
+    case 7: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleIn7); break;
+    default: break;
+    }
+}
+
+void UManagementDashboardWidget::BindDraftButton(UButton* Button, int32 Index)
+{
+    switch (Index) {
+    case 0: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft0); break;
+    case 1: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft1); break;
+    case 2: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft2); break;
+    case 3: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft3); break;
+    case 4: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft4); break;
+    case 5: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft5); break;
+    case 6: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft6); break;
+    case 7: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleDraft7); break;
+    default: break;
+    }
+}
+
+void UManagementDashboardWidget::BindSaveButton(UButton* Button, int32 Index)
+{
+    if (Index == 0) { Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleSaveSlot0); }
+    else if (Index == 1) { Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleSaveSlot1); }
+    else if (Index == 2) { Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleSaveSlot2); }
+}
+
+void UManagementDashboardWidget::BindLoadButton(UButton* Button, int32 Index)
+{
+    if (Index == 0) { Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleLoadSlot0); }
+    else if (Index == 1) { Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleLoadSlot1); }
+    else if (Index == 2) { Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleLoadSlot2); }
+}
+
+void UManagementDashboardWidget::BindExtensionButton(UButton* Button, int32 Index)
+{
+    switch (Index) {
+    case 0: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend0); break;
+    case 1: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend1); break;
+    case 2: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend2); break;
+    case 3: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend3); break;
+    case 4: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend4); break;
+    case 5: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend5); break;
+    case 6: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend6); break;
+    case 7: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleExtend7); break;
+    default: break;
+    }
+}
+
+void UManagementDashboardWidget::SelectTradeTeamAtSlot(int32 SlotIndex)
+{
+    if (SlotIndex < DisplayedTeamIds.Num())
     {
-        SelectedTradeTeamId = DisplayedTeamIds[Slot];
+        SelectedTradeTeamId = DisplayedTeamIds[SlotIndex];
         TradeOutgoingPlayerIds.Reset();
         TradeIncomingPlayerIds.Reset();
         RefreshDashboard();
@@ -1204,11 +1340,11 @@ void UManagementDashboardWidget::SelectTradeTeamAtSlot(int32 Slot)
     }
 }
 
-void UManagementDashboardWidget::ToggleTradeOutgoingAtSlot(int32 Slot)
+void UManagementDashboardWidget::ToggleTradeOutgoingAtSlot(int32 SlotIndex)
 {
-    if (Slot < DisplayedOutgoingIds.Num())
+    if (SlotIndex < DisplayedOutgoingIds.Num())
     {
-        const FGuid& Id = DisplayedOutgoingIds[Slot];
+        const FGuid& Id = DisplayedOutgoingIds[SlotIndex];
         if (TradeOutgoingPlayerIds.Contains(Id)) { TradeOutgoingPlayerIds.Remove(Id); }
         else { TradeOutgoingPlayerIds.Add(Id); }
         RefreshDashboard();
@@ -1216,11 +1352,11 @@ void UManagementDashboardWidget::ToggleTradeOutgoingAtSlot(int32 Slot)
     }
 }
 
-void UManagementDashboardWidget::ToggleTradeIncomingAtSlot(int32 Slot)
+void UManagementDashboardWidget::ToggleTradeIncomingAtSlot(int32 SlotIndex)
 {
-    if (Slot < DisplayedIncomingIds.Num())
+    if (SlotIndex < DisplayedIncomingIds.Num())
     {
-        const FGuid& Id = DisplayedIncomingIds[Slot];
+        const FGuid& Id = DisplayedIncomingIds[SlotIndex];
         if (TradeIncomingPlayerIds.Contains(Id)) { TradeIncomingPlayerIds.Remove(Id); }
         else { TradeIncomingPlayerIds.Add(Id); }
         RefreshDashboard();
@@ -1615,13 +1751,6 @@ void UManagementDashboardWidget::RefreshOffseasonScreen(const FLeagueState& Leag
                 10, DashboardStyle::Success))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
         }
 
-        typedef void (UManagementDashboardWidget::*FDraftHandler)();
-        const FDraftHandler DraftHandlers[] = {
-            &UManagementDashboardWidget::HandleDraft0, &UManagementDashboardWidget::HandleDraft1,
-            &UManagementDashboardWidget::HandleDraft2, &UManagementDashboardWidget::HandleDraft3,
-            &UManagementDashboardWidget::HandleDraft4, &UManagementDashboardWidget::HandleDraft5,
-            &UManagementDashboardWidget::HandleDraft6, &UManagementDashboardWidget::HandleDraft7 };
-
         DisplayedDraftIndices.Reset();
         int32 DraftSlot = 0;
         for (int32 Index = 0; Index < Offseason.DraftClass.Num(); ++Index)
@@ -1658,7 +1787,7 @@ void UManagementDashboardWidget::RefreshOffseasonScreen(const FLeagueState& Leag
                 UButton* DraftBtn = WidgetTree->ConstructWidget<UButton>();
                 DraftBtn->SetBackgroundColor(DashboardStyle::Accent);
                 DraftBtn->SetContent(MakeText(TEXT("DRAFT"), 9, DashboardStyle::Background, true));
-                DraftBtn->OnClicked.AddDynamic(this, DraftHandlers[DraftSlot]);
+                BindDraftButton(DraftBtn, DraftSlot);
                 RowContent->AddChildToHorizontalBox(DraftBtn)->SetSize(DashboardStyle::Size(0.35f));
                 DraftSlot++;
             }
@@ -1724,18 +1853,18 @@ void UManagementDashboardWidget::HandleAdvanceOffseason()
     }
 }
 
-void UManagementDashboardWidget::DraftProspectAtSlot(int32 Slot)
+void UManagementDashboardWidget::DraftProspectAtSlot(int32 SlotIndex)
 {
-    if (Slot >= DisplayedDraftIndices.Num()) { return; }
+    if (SlotIndex >= DisplayedDraftIndices.Num()) { return; }
     ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
     const FLeagueState League = Subsystem->GetLeague();
     if (League.Teams.Num() == 0) { return; }
     FString Error;
-    if (Subsystem->DraftPlayer(League.Teams[0].TeamId, DisplayedDraftIndices[Slot], Error))
+    if (Subsystem->DraftPlayer(League.Teams[0].TeamId, DisplayedDraftIndices[SlotIndex], Error))
     {
         RefreshDashboard();
         SetScreen(11);
-        const FDraftProspect& Drafted = Subsystem->GetOffseasonState().DraftClass[DisplayedDraftIndices[Slot]];
+        const FDraftProspect& Drafted = Subsystem->GetOffseasonState().DraftClass[DisplayedDraftIndices[SlotIndex]];
         StatusText->SetText(FText::FromString(FString::Printf(TEXT("Drafted %s!"), *Drafted.Profile.DisplayName)));
         StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
     }
@@ -1764,16 +1893,6 @@ void UManagementDashboardWidget::RefreshSaveLoadScreen()
 
     const FString SlotNames[] = { TEXT("SaveSlot1"), TEXT("SaveSlot2"), TEXT("SaveSlot3") };
     const FString SlotLabels[] = { TEXT("SLOT 1"), TEXT("SLOT 2"), TEXT("SLOT 3") };
-
-    typedef void (UManagementDashboardWidget::*FSaveLoadHandler)();
-    const FSaveLoadHandler SaveHandlers[] = {
-        &UManagementDashboardWidget::HandleSaveSlot0,
-        &UManagementDashboardWidget::HandleSaveSlot1,
-        &UManagementDashboardWidget::HandleSaveSlot2 };
-    const FSaveLoadHandler LoadHandlers[] = {
-        &UManagementDashboardWidget::HandleLoadSlot0,
-        &UManagementDashboardWidget::HandleLoadSlot1,
-        &UManagementDashboardWidget::HandleLoadSlot2 };
 
     SaveLoadList->AddChildToVerticalBox(MakeText(TEXT("AUTO-SAVE"), 10,
         DashboardStyle::Accent, true))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 6.0f));
@@ -1840,7 +1959,7 @@ void UManagementDashboardWidget::RefreshSaveLoadScreen()
         UButton* SaveBtn = WidgetTree->ConstructWidget<UButton>();
         SaveBtn->SetBackgroundColor(DashboardStyle::Accent);
         SaveBtn->SetContent(MakeText(TEXT("SAVE"), 10, DashboardStyle::Background, true));
-        SaveBtn->OnClicked.AddDynamic(this, SaveHandlers[SlotIdx]);
+        BindSaveButton(SaveBtn, SlotIdx);
         Buttons->AddChildToHorizontalBox(SaveBtn)->SetPadding(FMargin(0.0f, 0.0f, 8.0f, 0.0f));
 
         if (bExists)
@@ -1848,7 +1967,7 @@ void UManagementDashboardWidget::RefreshSaveLoadScreen()
             UButton* LoadBtn = WidgetTree->ConstructWidget<UButton>();
             LoadBtn->SetBackgroundColor(DashboardStyle::CardRaised);
             LoadBtn->SetContent(MakeText(TEXT("LOAD"), 10, DashboardStyle::Primary, true));
-            LoadBtn->OnClicked.AddDynamic(this, LoadHandlers[SlotIdx]);
+            BindLoadButton(LoadBtn, SlotIdx);
             Buttons->AddChildToHorizontalBox(LoadBtn);
         }
 
@@ -1857,18 +1976,18 @@ void UManagementDashboardWidget::RefreshSaveLoadScreen()
     }
 }
 
-void UManagementDashboardWidget::SaveToSlot(int32 Slot)
+void UManagementDashboardWidget::SaveToSlot(int32 SlotIndex)
 {
     const FString SlotNames[] = { TEXT("SaveSlot1"), TEXT("SaveSlot2"), TEXT("SaveSlot3") };
-    if (Slot < 0 || Slot > 2) { return; }
+    if (SlotIndex < 0 || SlotIndex > 2) { return; }
     ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
     if (!Subsystem) { return; }
     FString Error;
-    if (Subsystem->SaveLeagueAsync(SlotNames[Slot], Error))
+    if (Subsystem->SaveLeagueAsync(SlotNames[SlotIndex], Error))
     {
         RefreshDashboard();
         SetScreen(12);
-        StatusText->SetText(FText::FromString(FString::Printf(TEXT("Saved to Slot %d"), Slot + 1)));
+        StatusText->SetText(FText::FromString(FString::Printf(TEXT("Saved to Slot %d"), SlotIndex + 1)));
         StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
     }
     else
@@ -1878,18 +1997,18 @@ void UManagementDashboardWidget::SaveToSlot(int32 Slot)
     }
 }
 
-void UManagementDashboardWidget::LoadFromSlot(int32 Slot)
+void UManagementDashboardWidget::LoadFromSlot(int32 SlotIndex)
 {
     const FString SlotNames[] = { TEXT("SaveSlot1"), TEXT("SaveSlot2"), TEXT("SaveSlot3") };
-    if (Slot < 0 || Slot > 2) { return; }
+    if (SlotIndex < 0 || SlotIndex > 2) { return; }
     ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
     if (!Subsystem) { return; }
     FString Error;
-    if (Subsystem->LoadLeague(SlotNames[Slot], Error))
+    if (Subsystem->LoadLeague(SlotNames[SlotIndex], Error))
     {
         RefreshDashboard();
         SetScreen(0);
-        StatusText->SetText(FText::FromString(FString::Printf(TEXT("Loaded from Slot %d"), Slot + 1)));
+        StatusText->SetText(FText::FromString(FString::Printf(TEXT("Loaded from Slot %d"), SlotIndex + 1)));
         StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
     }
     else
@@ -2111,13 +2230,6 @@ void UManagementDashboardWidget::RefreshContractsScreen(const FLeagueState& Leag
         TEXT("Offer extensions to players before they hit free agency."), 10, DashboardStyle::Secondary))
         ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
 
-    typedef void (UManagementDashboardWidget::*FExtHandler)();
-    const FExtHandler Handlers[] = {
-        &UManagementDashboardWidget::HandleExtend0, &UManagementDashboardWidget::HandleExtend1,
-        &UManagementDashboardWidget::HandleExtend2, &UManagementDashboardWidget::HandleExtend3,
-        &UManagementDashboardWidget::HandleExtend4, &UManagementDashboardWidget::HandleExtend5,
-        &UManagementDashboardWidget::HandleExtend6, &UManagementDashboardWidget::HandleExtend7 };
-
     for (int32 I = 0; I < Eligible.Num() && I < 8; ++I)
     {
         const FExtensionOffer& Offer = Eligible[I];
@@ -2157,7 +2269,7 @@ void UManagementDashboardWidget::RefreshContractsScreen(const FLeagueState& Leag
         ExtendBtn->SetContent(MakeText(
             FString::Printf(TEXT("OFFER $%lldM / %dy"), Offer.AskingSalary / 1000000, Offer.AskingYears),
             10, DashboardStyle::Background, true));
-        ExtendBtn->OnClicked.AddDynamic(this, Handlers[I]);
+        BindExtensionButton(ExtendBtn, I);
         Content->AddChildToVerticalBox(ExtendBtn)->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
 
         ContractsList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
@@ -2170,14 +2282,14 @@ void UManagementDashboardWidget::RefreshContractsScreen(const FLeagueState& Leag
         ->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
 }
 
-void UManagementDashboardWidget::OfferExtensionAtSlot(int32 Slot)
+void UManagementDashboardWidget::OfferExtensionAtSlot(int32 SlotIndex)
 {
-    if (Slot >= DisplayedExtensionPlayerIds.Num()) { return; }
+    if (SlotIndex >= DisplayedExtensionPlayerIds.Num()) { return; }
     ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
     const FLeagueState League = Subsystem->GetLeague();
     if (League.Teams.Num() == 0) { return; }
 
-    const FGuid& PlayerId = DisplayedExtensionPlayerIds[Slot];
+    const FGuid& PlayerId = DisplayedExtensionPlayerIds[SlotIndex];
     const FPlayerProfile* Player = League.Teams[0].Players.FindByPredicate(
         [&PlayerId](const FPlayerProfile& P) { return P.PlayerId == PlayerId; });
     if (!Player) { return; }
@@ -2369,7 +2481,7 @@ void UManagementDashboardWidget::RefreshMatchCenterScreen(const FLeagueState& Le
         for (const FPlayerProfile& Player : Data.StartingFive)
         {
             Content->AddChildToVerticalBox(MakeText(
-                FString::Printf(TEXT("%s  —  OVR %d"), *Player.DisplayName, Player.OverallRating),
+                FString::Printf(TEXT("%s  —  OVR %d"), *Player.DisplayName, Player.Ratings.Overall()),
                 10, DashboardStyle::Primary))->SetPadding(FMargin(0.0f, 1.0f, 0.0f, 0.0f));
         }
 
@@ -2417,11 +2529,23 @@ void UManagementDashboardWidget::HandleWatchHighlights()
 
     if (LastPresentation.GameId.IsValid())
     {
-        RefreshDashboard();
-        SetScreen(18);
-        StatusText->SetText(FText::FromString(TEXT("Post-game highlights and recap")));
-        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
+        if (AUnderdogPlayerController* Controller = Cast<AUnderdogPlayerController>(GetOwningPlayer()))
+        {
+            if (Controller->StartBroadcast(LastPresentation))
+            {
+                return;
+            }
+        }
+        ReturnFromBroadcast();
     }
+}
+
+void UManagementDashboardWidget::ReturnFromBroadcast()
+{
+    RefreshDashboard();
+    SetScreen(18);
+    StatusText->SetText(FText::FromString(TEXT("Post-game highlights and recap")));
+    StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Success));
 }
 
 void UManagementDashboardWidget::HandleInstantResult()
@@ -2577,3 +2701,376 @@ void UManagementDashboardWidget::RefreshPostGameScreen()
     ReturnBtn->OnClicked.AddDynamic(this, &UManagementDashboardWidget::ShowOverview);
     PostGameList->AddChildToVerticalBox(ReturnBtn)->SetPadding(FMargin(0.0f, 16.0f, 0.0f, 0.0f));
 }
+
+void UManagementDashboardWidget::RefreshFranchiseScreen(const FLeagueState& League, const FTeamState& Club)
+{
+    FranchiseList->ClearChildren();
+    const FFranchiseState& Franchise = Club.Franchise;
+
+    UBorder* FinanceCard = MakeCard(DashboardStyle::CardRaised);
+    FinanceCard->SetPadding(FMargin(14.0f, 10.0f));
+    UVerticalBox* Finance = WidgetTree->ConstructWidget<UVerticalBox>();
+    FinanceCard->SetContent(Finance);
+    Finance->AddChildToVerticalBox(MakeText(TEXT("FRANCHISE FINANCES"), 11, DashboardStyle::Accent, true));
+    Finance->AddChildToVerticalBox(MakeText(FString::Printf(
+        TEXT("Cash $%.1fM   Revenue $%.1fM   Expenses $%.1fM   Profit $%.1fM"),
+        Franchise.Finances.CashMinorUnits / 100000000.0,
+        Franchise.Finances.SeasonRevenueMinorUnits / 100000000.0,
+        Franchise.Finances.SeasonExpensesMinorUnits / 100000000.0,
+        Franchise.Finances.OperatingProfit() / 100000000.0), 11, DashboardStyle::Primary, true))
+        ->SetPadding(FMargin(0.0f, 5.0f, 0.0f, 0.0f));
+    Finance->AddChildToVerticalBox(MakeText(FString::Printf(
+        TEXT("Last home gate: %d attendance / $%.2fM revenue"),
+        Franchise.Finances.LastAttendance,
+        Franchise.Finances.LastGameRevenueMinorUnits / 100000000.0), 10, DashboardStyle::Secondary));
+
+    UHorizontalBox* Pricing = WidgetTree->ConstructWidget<UHorizontalBox>();
+    UButton* PriceDown = WidgetTree->ConstructWidget<UButton>();
+    PriceDown->SetBackgroundColor(DashboardStyle::Card);
+    PriceDown->SetContent(MakeText(TEXT("- $5"), 10, DashboardStyle::Primary, true));
+    PriceDown->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTicketPriceDown);
+    Pricing->AddChildToHorizontalBox(PriceDown)->SetPadding(FMargin(0.0f, 4.0f));
+    Pricing->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("TICKET PRICE  $%.2f"),
+        Franchise.Finances.TicketPriceMinorUnits / 100.0), 11, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(12.0f, 7.0f));
+    UButton* PriceUp = WidgetTree->ConstructWidget<UButton>();
+    PriceUp->SetBackgroundColor(DashboardStyle::Card);
+    PriceUp->SetContent(MakeText(TEXT("+ $5"), 10, DashboardStyle::Primary, true));
+    PriceUp->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleTicketPriceUp);
+    Pricing->AddChildToHorizontalBox(PriceUp)->SetPadding(FMargin(0.0f, 4.0f));
+    Finance->AddChildToVerticalBox(Pricing)->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
+    FranchiseList->AddChildToVerticalBox(FinanceCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+    UBorder* FanCard = MakeCard(DashboardStyle::Card);
+    FanCard->SetPadding(FMargin(14.0f, 10.0f));
+    FanCard->SetContent(MakeText(FString::Printf(
+        TEXT("FANBASE   Support %d/100   Reputation %d/100   Season tickets %d"),
+        Franchise.Fanbase.Support, Franchise.Fanbase.Reputation,
+        Franchise.Fanbase.SeasonTicketHolders), 11, DashboardStyle::Primary, true));
+    FranchiseList->AddChildToVerticalBox(FanCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 8.0f));
+
+    FranchiseList->AddChildToVerticalBox(MakeText(TEXT("FACILITIES"), 11, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 5.0f, 0.0f, 6.0f));
+    auto AddFacility = [&](EFacilityType Type, const FString& Name, const FString& Effect,
+        void (UManagementDashboardWidget::*Handler)())
+    {
+        const int32 Level = FFranchiseService::GetFacilityLevel(Club, Type);
+        const int64 Cost = FFranchiseService::GetFacilityUpgradeCost(Club, Type);
+        UBorder* Card = MakeCard(DashboardStyle::Card);
+        Card->SetPadding(FMargin(12.0f, 8.0f));
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+        Card->SetContent(Row);
+        Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("%s  LVL %d/5"), *Name, Level),
+            11, DashboardStyle::Primary, true))->SetSize(DashboardStyle::Size(0.28f));
+        Row->AddChildToHorizontalBox(MakeText(Effect, 9, DashboardStyle::Secondary))
+            ->SetSize(DashboardStyle::Size(0.44f));
+        UButton* Upgrade = WidgetTree->ConstructWidget<UButton>();
+        Upgrade->SetBackgroundColor(Level < 5 ? DashboardStyle::Accent : DashboardStyle::CardRaised);
+        Upgrade->SetContent(MakeText(Level < 5
+            ? FString::Printf(TEXT("UPGRADE $%.1fM"), Cost / 100000000.0) : TEXT("MAX LEVEL"),
+            9, Level < 5 ? DashboardStyle::Background : DashboardStyle::Secondary, true));
+        Upgrade->SetIsEnabled(Level < 5);
+        if (Handler == &UManagementDashboardWidget::HandleUpgradeTraining)
+            { Upgrade->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleUpgradeTraining); }
+        else if (Handler == &UManagementDashboardWidget::HandleUpgradeMedical)
+            { Upgrade->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleUpgradeMedical); }
+        else if (Handler == &UManagementDashboardWidget::HandleUpgradeScouting)
+            { Upgrade->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleUpgradeScouting); }
+        else { Upgrade->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleUpgradeArena); }
+        Row->AddChildToHorizontalBox(Upgrade)->SetSize(DashboardStyle::Size(0.28f));
+        FranchiseList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+    };
+    AddFacility(EFacilityType::TrainingCentre, TEXT("TRAINING CENTRE"), TEXT("Improves development chance"),
+        &UManagementDashboardWidget::HandleUpgradeTraining);
+    AddFacility(EFacilityType::MedicalCentre, TEXT("MEDICAL CENTRE"), TEXT("Reduces fatigue and injury risk"),
+        &UManagementDashboardWidget::HandleUpgradeMedical);
+    AddFacility(EFacilityType::ScoutingDepartment, TEXT("SCOUTING DEPARTMENT"), TEXT("Narrows report uncertainty"),
+        &UManagementDashboardWidget::HandleUpgradeScouting);
+    AddFacility(EFacilityType::ArenaOperations, TEXT("ARENA OPERATIONS"), TEXT("Raises capacity and concessions"),
+        &UManagementDashboardWidget::HandleUpgradeArena);
+
+    FranchiseList->AddChildToVerticalBox(MakeText(FString::Printf(TEXT("OWNER CONFIDENCE  %d/100"),
+        Franchise.Ownership.Confidence), 12, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 12.0f, 0.0f, 5.0f));
+    for (const FOwnerObjective& Objective : Franchise.Ownership.Objectives)
+    {
+        FString Label;
+        switch (Objective.Type)
+        {
+        case EOwnerObjectiveType::WinGames: Label = TEXT("Win games"); break;
+        case EOwnerObjectiveType::ReachPlayoffs: Label = TEXT("Reach playoffs"); break;
+        case EOwnerObjectiveType::PositiveBalance: Label = TEXT("Maintain positive operating profit"); break;
+        default: Label = TEXT("Build team chemistry"); break;
+        }
+        FranchiseList->AddChildToVerticalBox(MakeText(FString::Printf(TEXT("%s  %d/%d  %s"),
+            *Label, Objective.Current, Objective.Target, Objective.bCompleted ? TEXT("COMPLETE") : TEXT("IN PROGRESS")),
+            10, Objective.bCompleted ? DashboardStyle::Success : DashboardStyle::Secondary));
+    }
+}
+
+void UManagementDashboardWidget::HandleTicketPriceDown()
+{
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!Subsystem) { return; }
+    const FLeagueState League = Subsystem->GetLeague();
+    if (League.Teams.IsEmpty()) { return; }
+    FString Error;
+    if (Subsystem->SetTicketPrice(League.Teams[0].TeamId,
+        League.Teams[0].Franchise.Finances.TicketPriceMinorUnits - 500, Error))
+    { RefreshDashboard(); SetScreen(19); }
+    else { StatusText->SetText(FText::FromString(Error)); }
+}
+
+void UManagementDashboardWidget::HandleTicketPriceUp()
+{
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!Subsystem) { return; }
+    const FLeagueState League = Subsystem->GetLeague();
+    if (League.Teams.IsEmpty()) { return; }
+    FString Error;
+    if (Subsystem->SetTicketPrice(League.Teams[0].TeamId,
+        League.Teams[0].Franchise.Finances.TicketPriceMinorUnits + 500, Error))
+    { RefreshDashboard(); SetScreen(19); }
+    else { StatusText->SetText(FText::FromString(Error)); }
+}
+
+void UManagementDashboardWidget::UpgradeFranchiseFacility(EFacilityType Type)
+{
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()
+        ? GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>() : nullptr;
+    if (!Subsystem) { return; }
+    const FLeagueState League = Subsystem->GetLeague();
+    if (League.Teams.IsEmpty()) { return; }
+    FString Error;
+    if (Subsystem->UpgradeFacility(League.Teams[0].TeamId, Type, Error))
+    { RefreshDashboard(); SetScreen(19); }
+    else { StatusText->SetText(FText::FromString(Error)); }
+}
+
+void UManagementDashboardWidget::HandleUpgradeTraining()
+{
+    UpgradeFranchiseFacility(EFacilityType::TrainingCentre);
+}
+void UManagementDashboardWidget::HandleUpgradeMedical()
+{
+    UpgradeFranchiseFacility(EFacilityType::MedicalCentre);
+}
+void UManagementDashboardWidget::HandleUpgradeScouting()
+{
+    UpgradeFranchiseFacility(EFacilityType::ScoutingDepartment);
+}
+void UManagementDashboardWidget::HandleUpgradeArena()
+{
+    UpgradeFranchiseFacility(EFacilityType::ArenaOperations);
+}
+
+void UManagementDashboardWidget::RefreshStaffScreen(const FLeagueState& League, const FTeamState& Club)
+{
+    StaffList->ClearChildren();
+    auto RoleName = [](EStaffRole Role)
+    {
+        switch (Role)
+        {
+        case EStaffRole::HeadCoach: return FString(TEXT("HEAD COACH"));
+        case EStaffRole::OffensiveCoach: return FString(TEXT("OFFENSIVE COACH"));
+        case EStaffRole::DefensiveCoach: return FString(TEXT("DEFENSIVE COACH"));
+        case EStaffRole::DevelopmentCoach: return FString(TEXT("DEVELOPMENT COACH"));
+        case EStaffRole::HeadScout: return FString(TEXT("HEAD SCOUT"));
+        default: return FString(TEXT("MEDICAL DIRECTOR"));
+        }
+    };
+
+    UBorder* Header = MakeCard(DashboardStyle::CardRaised);
+    Header->SetPadding(FMargin(16.0f, 11.0f));
+    Header->SetContent(MakeText(FString::Printf(
+        TEXT("STAFF CHEMISTRY %d   TACTICAL FAMILIARITY %d   PAYROLL $%.1fM"),
+        Club.Organization.StaffChemistry, Club.Organization.TacticalFamiliarity,
+        Club.Organization.AnnualPayrollMinorUnits / 100000000.0), 12, DashboardStyle::Primary, true));
+    StaffList->AddChildToVerticalBox(Header)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+
+    StaffList->AddChildToVerticalBox(MakeText(TEXT("YOUR ORGANIZATION"), 10, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 6.0f));
+    for (const FStaffMember& Staff : Club.Organization.Staff)
+    {
+        UBorder* Card = MakeCard(DashboardStyle::Card);
+        Card->SetPadding(FMargin(12.0f, 7.0f));
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+        Card->SetContent(Row);
+        Row->AddChildToHorizontalBox(MakeText(RoleName(Staff.Role), 9, DashboardStyle::Accent, true))
+            ->SetSize(DashboardStyle::Size(0.24f));
+        Row->AddChildToHorizontalBox(MakeText(Staff.DisplayName, 11, DashboardStyle::Primary, true))
+            ->SetSize(DashboardStyle::Size(0.28f));
+        Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("OVR %d   REP %d"),
+            Staff.Ratings.OverallForRole(Staff.Role), Staff.Reputation), 10, DashboardStyle::Primary))
+            ->SetSize(DashboardStyle::Size(0.2f));
+        UTextBlock* Contract = MakeText(FString::Printf(TEXT("$%.1fM / %dY"),
+            Staff.Contract.SalaryMinorUnits / 100000000.0, Staff.Contract.YearsRemaining),
+            10, DashboardStyle::Secondary);
+        Contract->SetJustification(ETextJustify::Right);
+        Row->AddChildToHorizontalBox(Contract)->SetSize(DashboardStyle::Size(0.2f));
+        StaffList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f));
+    }
+
+    StaffList->AddChildToVerticalBox(MakeText(TEXT("AVAILABLE STAFF"), 10, DashboardStyle::Accent, true))
+        ->SetPadding(FMargin(0.0f, 14.0f, 0.0f, 6.0f));
+    DisplayedStaffCandidateIds.Reset();
+    for (int32 Index = 0; Index < League.StaffMarket.Num() && Index < 6; ++Index)
+    {
+        const FStaffMember& Candidate = League.StaffMarket[Index];
+        DisplayedStaffCandidateIds.Add(Candidate.StaffId);
+        UBorder* Card = MakeCard(DashboardStyle::CardRaised);
+        Card->SetPadding(FMargin(12.0f, 7.0f));
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+        Card->SetContent(Row);
+        Row->AddChildToHorizontalBox(MakeText(RoleName(Candidate.Role), 9, DashboardStyle::Secondary, true))
+            ->SetSize(DashboardStyle::Size(0.22f));
+        Row->AddChildToHorizontalBox(MakeText(Candidate.DisplayName, 11, DashboardStyle::Primary, true))
+            ->SetSize(DashboardStyle::Size(0.25f));
+        Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("OVR %d   AGE %d"),
+            Candidate.Ratings.OverallForRole(Candidate.Role), Candidate.Age), 10, DashboardStyle::Primary))
+            ->SetSize(DashboardStyle::Size(0.2f));
+        UButton* Hire = WidgetTree->ConstructWidget<UButton>();
+        Hire->SetBackgroundColor(DashboardStyle::Accent);
+        Hire->SetContent(MakeText(FString::Printf(TEXT("HIRE  $%.1fM / 2Y"),
+            Candidate.Contract.SalaryMinorUnits / 100000000.0), 9, DashboardStyle::Primary, true));
+        BindStaffHireButton(Hire, Index);
+        Row->AddChildToHorizontalBox(Hire)->SetSize(DashboardStyle::Size(0.24f));
+        StaffList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f));
+    }
+}
+
+void UManagementDashboardWidget::BindStaffHireButton(UButton* Button, int32 Index)
+{
+    switch (Index)
+    {
+    case 0: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleHireStaff0); break;
+    case 1: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleHireStaff1); break;
+    case 2: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleHireStaff2); break;
+    case 3: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleHireStaff3); break;
+    case 4: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleHireStaff4); break;
+    case 5: Button->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleHireStaff5); break;
+    default: break;
+    }
+}
+
+void UManagementDashboardWidget::HireStaffAtSlot(int32 Index)
+{
+    if (!DisplayedStaffCandidateIds.IsValidIndex(Index)) { return; }
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!Subsystem) { return; }
+    const FLeagueState League = Subsystem->GetLeague();
+    if (League.Teams.IsEmpty()) { return; }
+    const FStaffMember* Candidate = League.StaffMarket.FindByPredicate(
+        [this, Index](const FStaffMember& Staff) { return Staff.StaffId == DisplayedStaffCandidateIds[Index]; });
+    if (!Candidate) { return; }
+    FString Error;
+    if (Subsystem->HireStaff(League.Teams[0].TeamId, Candidate->StaffId,
+        Candidate->Contract.SalaryMinorUnits, 2, Error))
+    {
+        RefreshDashboard();
+        SetScreen(20);
+        StatusText->SetText(FText::FromString(TEXT("Staff appointment completed.")));
+    }
+    else { StatusText->SetText(FText::FromString(Error)); }
+}
+
+void UManagementDashboardWidget::HandleHireStaff0() { HireStaffAtSlot(0); }
+void UManagementDashboardWidget::HandleHireStaff1() { HireStaffAtSlot(1); }
+void UManagementDashboardWidget::HandleHireStaff2() { HireStaffAtSlot(2); }
+void UManagementDashboardWidget::HandleHireStaff3() { HireStaffAtSlot(3); }
+void UManagementDashboardWidget::HandleHireStaff4() { HireStaffAtSlot(4); }
+void UManagementDashboardWidget::HandleHireStaff5() { HireStaffAtSlot(5); }
+
+void UManagementDashboardWidget::RefreshCareerScreen(const FLeagueState& League)
+{
+    CareerList->ClearChildren();
+    const FManagerCareer& Career = League.ManagerCareer;
+    const FTeamState* CurrentTeam = League.Teams.FindByPredicate(
+        [&Career](const FTeamState& Team) { return Team.TeamId == Career.CurrentTeamId; });
+    const FString Employment = Career.EmploymentStatus == EManagerEmploymentStatus::Employed
+        ? FString::Printf(TEXT("%s  |  %dY CONTRACT"),
+            CurrentTeam ? *(CurrentTeam->City + TEXT(" ") + CurrentTeam->Nickname) : TEXT("UNKNOWN CLUB"),
+            Career.ContractYearsRemaining)
+        : TEXT("UNEMPLOYED - REVIEW AVAILABLE OFFERS");
+
+    UBorder* Hero = MakeCard(DashboardStyle::CardRaised);
+    Hero->SetPadding(FMargin(18.0f, 14.0f));
+    UVerticalBox* HeroContent = WidgetTree->ConstructWidget<UVerticalBox>();
+    Hero->SetContent(HeroContent);
+    HeroContent->AddChildToVerticalBox(MakeText(Career.ManagerName.ToUpper(), 24, DashboardStyle::Primary, true));
+    HeroContent->AddChildToVerticalBox(MakeText(Employment, 10, DashboardStyle::Accent, true));
+    HeroContent->AddChildToVerticalBox(MakeText(FString::Printf(
+        TEXT("CAREER %d-%d   |   PLAYOFFS %d   |   TITLES %d   |   LEGACY SCORE %d"),
+        Career.CareerWins, Career.CareerLosses, Career.PlayoffAppearances,
+        Career.Championships, Career.CareerScore), 12, DashboardStyle::Primary, true))
+        ->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
+    CareerList->AddChildToVerticalBox(Hero)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 12.0f));
+
+    CareerList->AddChildToVerticalBox(MakeText(TEXT("SEASON HISTORY"), 10, DashboardStyle::Accent, true));
+    if (Career.SeasonHistory.IsEmpty())
+    {
+        CareerList->AddChildToVerticalBox(MakeText(
+            TEXT("Complete your first season to establish a managerial record."), 10, DashboardStyle::Secondary));
+    }
+    for (int32 Index = Career.SeasonHistory.Num() - 1; Index >= 0; --Index)
+    {
+        const FManagerSeasonRecord& Record = Career.SeasonHistory[Index];
+        CareerList->AddChildToVerticalBox(MakeText(FString::Printf(
+            TEXT("S%d  |  %s  |  %d-%d  |  %s  |  OWNER %d"), Record.Season,
+            *Record.TeamName, Record.Wins, Record.Losses,
+            Record.bChampion ? TEXT("CHAMPION") : Record.bReachedPlayoffs ? TEXT("PLAYOFFS") : TEXT("LOTTERY"),
+            Record.OwnerConfidence), 10,
+            Record.bChampion ? DashboardStyle::Success : DashboardStyle::Primary, Record.bChampion));
+    }
+
+    DisplayedJobOfferTeamIds.Reset();
+    if (!Career.JobOffers.IsEmpty())
+    {
+        CareerList->AddChildToVerticalBox(MakeText(TEXT("JOB MARKET"), 10, DashboardStyle::Accent, true))
+            ->SetPadding(FMargin(0.0f, 14.0f, 0.0f, 6.0f));
+    }
+    for (int32 Index = 0; Index < Career.JobOffers.Num() && Index < 3; ++Index)
+    {
+        const FManagerJobOffer& Offer = Career.JobOffers[Index];
+        DisplayedJobOfferTeamIds.Add(Offer.TeamId);
+        UBorder* Card = MakeCard(DashboardStyle::Card);
+        Card->SetPadding(FMargin(12.0f, 8.0f));
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+        Card->SetContent(Row);
+        Row->AddChildToHorizontalBox(MakeText(Offer.TeamName, 12, DashboardStyle::Primary, true))
+            ->SetSize(DashboardStyle::Size(0.5f));
+        Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("%dY  |  TARGET %d WINS"),
+            Offer.ContractYears, Offer.ExpectedWins), 10, DashboardStyle::Secondary))
+            ->SetSize(DashboardStyle::Size(0.3f));
+        UButton* Accept = WidgetTree->ConstructWidget<UButton>();
+        Accept->SetBackgroundColor(DashboardStyle::Accent);
+        Accept->SetContent(MakeText(TEXT("ACCEPT JOB"), 9, DashboardStyle::Primary, true));
+        if (Index == 0) { Accept->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleAcceptJob0); }
+        else if (Index == 1) { Accept->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleAcceptJob1); }
+        else { Accept->OnClicked.AddDynamic(this, &UManagementDashboardWidget::HandleAcceptJob2); }
+        Row->AddChildToHorizontalBox(Accept)->SetSize(DashboardStyle::Size(0.2f));
+        CareerList->AddChildToVerticalBox(Card)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 4.0f));
+    }
+}
+
+void UManagementDashboardWidget::AcceptJobAtSlot(int32 Index)
+{
+    if (!DisplayedJobOfferTeamIds.IsValidIndex(Index)) { return; }
+    ULeagueGameSubsystem* Subsystem = GetGameInstance()->GetSubsystem<ULeagueGameSubsystem>();
+    if (!Subsystem) { return; }
+    FString Error;
+    if (Subsystem->AcceptManagerJob(DisplayedJobOfferTeamIds[Index], Error))
+    {
+        SelectedTradeTeamId.Invalidate();
+        TradeOutgoingPlayerIds.Reset();
+        TradeIncomingPlayerIds.Reset();
+        RefreshDashboard();
+        SetScreen(21);
+        StatusText->SetText(FText::FromString(TEXT("New club appointment accepted.")));
+    }
+    else { StatusText->SetText(FText::FromString(Error)); }
+}
+
+void UManagementDashboardWidget::HandleAcceptJob0() { AcceptJobAtSlot(0); }
+void UManagementDashboardWidget::HandleAcceptJob1() { AcceptJobAtSlot(1); }
+void UManagementDashboardWidget::HandleAcceptJob2() { AcceptJobAtSlot(2); }

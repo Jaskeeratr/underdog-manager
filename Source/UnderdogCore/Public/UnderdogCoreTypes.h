@@ -50,6 +50,24 @@ enum class EAwardType : uint8 { MVP, DPOY, ROY, MIP, ChampionMVP };
 UENUM(BlueprintType)
 enum class EOffseasonStep : uint8 { Awards, Aging, ContractExpiry, FreeAgency, Draft, Resigning, Complete };
 
+UENUM(BlueprintType)
+enum class EFacilityType : uint8 { TrainingCentre, MedicalCentre, ScoutingDepartment, ArenaOperations };
+
+UENUM(BlueprintType)
+enum class EOwnerObjectiveType : uint8 { WinGames, ReachPlayoffs, PositiveBalance, ImproveChemistry };
+
+UENUM(BlueprintType)
+enum class EStaffRole : uint8
+{
+    HeadCoach, OffensiveCoach, DefensiveCoach, DevelopmentCoach, HeadScout, MedicalDirector
+};
+
+UENUM(BlueprintType)
+enum class EStaffPersonality : uint8 { PlayersCoach, Strategist, Developer, Traditionalist, Negotiator };
+
+UENUM(BlueprintType)
+enum class EManagerEmploymentStatus : uint8 { Employed, Unemployed };
+
 USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FPlayerRatings
 {
@@ -139,6 +157,165 @@ struct UNDERDOGCORE_API FRotationPlan
 };
 
 USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FFranchiseFinances
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 CashMinorUnits = 2500000000LL;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 TicketPriceMinorUnits = 4500;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 SeasonRevenueMinorUnits = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 SeasonExpensesMinorUnits = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 LastGameRevenueMinorUnits = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 LastAttendance = 0;
+    int64 OperatingProfit() const { return SeasonRevenueMinorUnits - SeasonExpensesMinorUnits; }
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FFanbaseState
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Support = 45;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Reputation = 35;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SeasonTicketHolders = 3500;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FFacilityState
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EFacilityType Type = EFacilityType::TrainingCentre;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Level = 1;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FOwnerObjective
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EOwnerObjectiveType Type = EOwnerObjectiveType::WinGames;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Target = 8;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Current = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bCompleted = false;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FOwnershipState
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Confidence = 60;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FOwnerObjective> Objectives;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FFranchiseState
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FFranchiseFinances Finances;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FFanbaseState Fanbase;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FFacilityState> Facilities;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FOwnershipState Ownership;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FStaffRatings
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Offense = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Defense = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Development = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Motivation = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Scouting = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Medical = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TacticalFlexibility = 50;
+    int32 OverallForRole(EStaffRole Role) const;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FStaffContract
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 SalaryMinorUnits = 75000000LL;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 YearsRemaining = 2;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FStaffMember
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid StaffId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString DisplayName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Age = 42;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EStaffRole Role = EStaffRole::HeadCoach;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EStaffPersonality Personality = EStaffPersonality::Strategist;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FStaffRatings Ratings;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FStaffContract Contract;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Reputation = 50;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FOrganizationState
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FStaffMember> Staff;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 StaffChemistry = 55;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TacticalFamiliarity = 50;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 AnnualPayrollMinorUnits = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FTradeEvaluation
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bLegal = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bAccepted = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ProposerReceivesValue = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ReceiverReceivesValue = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 ProposerSalaryChange = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 ReceiverSalaryChange = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Summary;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FString> Reasons;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FManagerSeasonRecord
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Season = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString TeamName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Wins = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Losses = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bReachedPlayoffs = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bChampion = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 OwnerConfidence = 50;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FManagerJobOffer
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString TeamName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ContractYears = 2;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ExpectedWins = 8;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FManagerCareer
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString ManagerName = TEXT("J. Rai");
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid CurrentTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EManagerEmploymentStatus EmploymentStatus = EManagerEmploymentStatus::Employed;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ContractYearsRemaining = 2;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CareerWins = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CareerLosses = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PlayoffAppearances = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Championships = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CareerScore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FManagerSeasonRecord> SeasonHistory;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FManagerJobOffer> JobOffers;
+};
+
+USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FTeamState
 {
     GENERATED_BODY()
@@ -158,6 +335,8 @@ struct UNDERDOGCORE_API FTeamState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Losses = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PointsFor = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PointsAgainst = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FFranchiseState Franchise;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FOrganizationState Organization;
     int64 TotalSalary() const { int64 Sum = 0; for (const FPlayerProfile& P : Players) { Sum += P.Contract.SalaryMinorUnits; } return Sum; }
     bool IsOverCap() const { return TotalSalary() > SalaryCapMinorUnits; }
     int64 LuxuryTaxThreshold() const { return SalaryCapMinorUnits + SalaryCapMinorUnits / 4; }
@@ -236,7 +415,7 @@ struct UNDERDOGCORE_API FPlayoffSeries
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 LowerSeedWins = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FGuid> GameIds;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bComplete = false;
-    FGuid GetWinnerId() const { return HigherSeedWins >= 4 ? HigherSeedTeamId : LowerSeedWins >= 4 ? LowerSeedTeamId : FGuid(); }
+    FGuid GetWinnerId() const { return HigherSeedWins >= 2 ? HigherSeedTeamId : LowerSeedWins >= 2 ? LowerSeedTeamId : FGuid(); }
     int32 GamesPlayed() const { return HigherSeedWins + LowerSeedWins; }
 };
 
@@ -384,21 +563,6 @@ struct UNDERDOGCORE_API FTeamPresentationData
 };
 
 USTRUCT(BlueprintType)
-struct UNDERDOGCORE_API FMatchPresentationPackage
-{
-    GENERATED_BODY()
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid GameId;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamPresentationData Home;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamPresentationData Away;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FHighlightCue> Highlights;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) FMatchResult Result;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGameRecap Recap;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RivalryIntensity = 0;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bPlayoffGame = false;
-    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString StandingsImplication;
-};
-
-USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FQuarterScore
 {
     GENERATED_BODY()
@@ -431,6 +595,8 @@ struct UNDERDOGCORE_API FGameRecap
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString AwayTeamName;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 FinalHomeScore = 0;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 FinalAwayScore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Headline;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Summary;
 };
 
 USTRUCT(BlueprintType)
@@ -516,6 +682,8 @@ struct UNDERDOGCORE_API FLeagueState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FOffseasonState Offseason;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FLeagueHistory History;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FRivalry> Rivalries;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FStaffMember> StaffMarket;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FManagerCareer ManagerCareer;
 };
 
 USTRUCT(BlueprintType)
@@ -578,4 +746,19 @@ struct UNDERDOGCORE_API FMatchResult
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayerBoxScore> HomeBoxScore;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayerBoxScore> AwayBoxScore;
     bool Validate(FString& OutError) const;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FMatchPresentationPackage
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid GameId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamPresentationData Home;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FTeamPresentationData Away;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FHighlightCue> Highlights;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FMatchResult Result;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGameRecap Recap;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 RivalryIntensity = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bPlayoffGame = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString StandingsImplication;
 };

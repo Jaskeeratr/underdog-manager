@@ -8,6 +8,9 @@
 #include "DeterministicRandom.h"
 #include "LeagueHistoryService.h"
 #include "RivalryService.h"
+#include "FranchiseService.h"
+#include "StaffService.h"
+#include "CareerService.h"
 
 namespace
 {
@@ -31,6 +34,11 @@ bool FOffseasonService::StartOffseason(FLeagueState& League, FString& OutError)
         OutError = TEXT("The season must be complete before starting the offseason.");
         return false;
     }
+    if (League.Offseason.CurrentStep != EOffseasonStep::Awards)
+    {
+        OutError = TEXT("The offseason has already started.");
+        return false;
+    }
 
     League.Offseason = FOffseasonState();
     League.Offseason.CurrentStep = EOffseasonStep::Awards;
@@ -42,6 +50,7 @@ bool FOffseasonService::StartOffseason(FLeagueState& League, FString& OutError)
     }
     League.Awards.Append(SeasonAwards);
     FLeagueHistoryService::RecordSeasonEnd(League);
+    FCareerService::EvaluateSeason(League);
 
     League.Offseason.CurrentStep = EOffseasonStep::Aging;
     return true;
@@ -216,6 +225,23 @@ bool FOffseasonService::DraftPlayer(FLeagueState& League, const FGuid& TeamId,
         return false;
     }
 
+    if (Team->Players.Num() >= 15)
+    {
+        int32 ReleaseIndex = 0;
+        for (int32 Index = 1; Index < Team->Players.Num(); ++Index)
+        {
+            if (Team->Players[Index].Ratings.Overall() < Team->Players[ReleaseIndex].Ratings.Overall())
+            {
+                ReleaseIndex = Index;
+            }
+        }
+        const FGuid ReleasedId = Team->Players[ReleaseIndex].PlayerId;
+        Team->Players.RemoveAt(ReleaseIndex);
+        const int32 StateIndex = Team->PlayerStates.IndexOfByPredicate(
+            [&ReleasedId](const FAthleteState& State) { return State.PlayerId == ReleasedId; });
+        if (StateIndex != INDEX_NONE) { Team->PlayerStates.RemoveAt(StateIndex); }
+    }
+
     Prospect.bDrafted = true;
     Prospect.DraftedByTeamId = TeamId;
     Team->Players.Add(Prospect.Profile);
@@ -320,4 +346,6 @@ void FOffseasonService::ResetForNewSeason(FLeagueState& League)
 
     FDevelopmentService::EstablishMentorships(League);
     FRivalryService::DecayRivalries(League);
+    FStaffService::ProcessOffseason(League);
+    FFranchiseService::ResetForNewSeason(League);
 }

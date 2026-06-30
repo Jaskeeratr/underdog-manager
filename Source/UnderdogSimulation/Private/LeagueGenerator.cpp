@@ -1,5 +1,8 @@
 #include "LeagueGenerator.h"
 #include "DeterministicRandom.h"
+#include "FranchiseService.h"
+#include "StaffService.h"
+#include "CareerService.h"
 
 namespace
 {
@@ -39,6 +42,7 @@ FLeagueState FLeagueGenerator::Generate(uint64 Seed)
         Team.City = Cities[TeamIndex];
         Team.Nickname = Nicknames[TeamIndex];
         Team.OperatingBalanceMinorUnits = 2500000000LL;
+        FFranchiseService::InitializeTeam(Team, TeamIndex);
         Team.Players.Reserve(15);
         Team.PlayerStates.Reserve(15);
 
@@ -82,6 +86,8 @@ FLeagueState FLeagueGenerator::Generate(uint64 Seed)
         League.Teams.Add(MoveTemp(Team));
     }
 
+    FStaffService::InitializeLeague(League);
+    FCareerService::InitializeCareer(League);
     League.Schedule = GenerateDoubleRoundRobin(League.Teams, Seed ^ 0x5343484544554C45ULL);
     return League;
 }
