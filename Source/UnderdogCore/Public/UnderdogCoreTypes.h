@@ -330,6 +330,101 @@ struct UNDERDOGCORE_API FOffseasonState
 };
 
 USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FQuarterScore
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 HomePoints = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 AwayPoints = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FPlayByPlayEntry
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Period = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ClockSeconds = 720;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Description;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 HomeScore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 AwayScore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bHighlight = false;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FGameRecap
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid GameId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FQuarterScore> QuarterScores;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FPlayByPlayEntry> PlayByPlay;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid HomeTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid AwayTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString HomeTeamName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString AwayTeamName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 FinalHomeScore = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 FinalAwayScore = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FChampionshipRecord
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Season = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid ChampionTeamId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString ChampionName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid MvpPlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString MvpName;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FAllTimeLeader
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString PlayerName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalPoints = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalRebounds = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 TotalAssists = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 GamesPlayed = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 SeasonsPlayed = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Championships = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 MvpAwards = 0;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FLeagueHistory
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FChampionshipRecord> Championships;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FAllTimeLeader> AllTimeLeaders;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FSeasonAward> AllAwards;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FExtensionOffer
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid PlayerId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString PlayerName;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 OfferedSalary = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 OfferedYears = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int64 AskingSalary = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 AskingYears = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bAccepted = false;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) bool bDeclined = false;
+};
+
+USTRUCT(BlueprintType)
+struct UNDERDOGCORE_API FRivalry
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TeamAId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FGuid TeamBId;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Intensity = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 PlayoffMeetings = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 CloseGames = 0;
+};
+
+USTRUCT(BlueprintType)
 struct UNDERDOGCORE_API FLeagueState
 {
     GENERATED_BODY()
@@ -350,6 +445,8 @@ struct UNDERDOGCORE_API FLeagueState
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FSeasonAward> Awards;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FMentorship> Mentorships;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FOffseasonState Offseason;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FLeagueHistory History;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) TArray<FRivalry> Rivalries;
 };
 
 USTRUCT(BlueprintType)

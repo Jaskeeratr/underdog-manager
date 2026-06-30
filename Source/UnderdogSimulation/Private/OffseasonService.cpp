@@ -6,6 +6,8 @@
 #include "LeagueService.h"
 #include "ManagementService.h"
 #include "DeterministicRandom.h"
+#include "LeagueHistoryService.h"
+#include "RivalryService.h"
 
 namespace
 {
@@ -39,6 +41,7 @@ bool FOffseasonService::StartOffseason(FLeagueState& League, FString& OutError)
         SeasonAwards.Add(FAwardsService::CalculateChampionMVP(League));
     }
     League.Awards.Append(SeasonAwards);
+    FLeagueHistoryService::RecordSeasonEnd(League);
 
     League.Offseason.CurrentStep = EOffseasonStep::Aging;
     return true;
@@ -316,4 +319,5 @@ void FOffseasonService::ResetForNewSeason(FLeagueState& League)
         static_cast<uint64>(League.LeagueSeed) ^ (static_cast<uint64>(League.SeasonNumber) << 40));
 
     FDevelopmentService::EstablishMentorships(League);
+    FRivalryService::DecayRivalries(League);
 }

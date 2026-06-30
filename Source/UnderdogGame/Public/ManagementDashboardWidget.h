@@ -57,6 +57,10 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> OffseasonList;
     UPROPERTY() TObjectPtr<UVerticalBox> TacticsList;
     UPROPERTY() TObjectPtr<UVerticalBox> SaveLoadList;
+    UPROPERTY() TObjectPtr<UVerticalBox> GameRecapList;
+    UPROPERTY() TObjectPtr<UVerticalBox> HistoryList;
+    UPROPERTY() TObjectPtr<UVerticalBox> ContractsList;
+    UPROPERTY() TObjectPtr<UVerticalBox> RivalriesList;
     UPROPERTY() TObjectPtr<UTextBlock> TrainingPlanText;
     UPROPERTY() TObjectPtr<UTextBlock> ScoutingStatusText;
     FGuid RecommendedScoutPlayerId;
@@ -69,6 +73,7 @@ private:
     TArray<FGuid> DisplayedTeamIds;
 
     TArray<int32> DisplayedDraftIndices;
+    TArray<FGuid> DisplayedExtensionPlayerIds;
 
     void BuildLayout();
     void RefreshDashboard();
@@ -89,6 +94,11 @@ private:
     void RefreshAwardsScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshOffseasonScreen(const FLeagueState& League, const FTeamState& Club);
     void RefreshSaveLoadScreen();
+    void RefreshGameRecapScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshHistoryScreen(const FLeagueState& League);
+    void RefreshContractsScreen(const FLeagueState& League, const FTeamState& Club);
+    void RefreshRivalriesScreen(const FLeagueState& League, const FTeamState& Club);
+    void OfferExtensionAtSlot(int32 Slot);
     void SetScreen(int32 Index);
     void ApplyTrainingPlan(ETrainingFocus Focus, ETrainingIntensity Intensity);
     void ApplyTactics(EPaceStyle Pace, EOffenseStyle Offense, EDefenseStyle Defense, EReboundPriority Rebounding);
@@ -112,6 +122,10 @@ private:
     UFUNCTION() void ShowAwards();
     UFUNCTION() void ShowOffseason();
     UFUNCTION() void ShowSaveLoad();
+    UFUNCTION() void ShowGameRecap();
+    UFUNCTION() void ShowHistory();
+    UFUNCTION() void ShowContracts();
+    UFUNCTION() void ShowRivalries();
     UFUNCTION() void HandleAdvanceOffseason();
     UFUNCTION() void HandleSignFreeAgent();
     UFUNCTION() void HandleBuildTrade();
@@ -175,6 +189,14 @@ private:
     UFUNCTION() void HandleLoadSlot0();
     UFUNCTION() void HandleLoadSlot1();
     UFUNCTION() void HandleLoadSlot2();
+    UFUNCTION() void HandleExtend0();
+    UFUNCTION() void HandleExtend1();
+    UFUNCTION() void HandleExtend2();
+    UFUNCTION() void HandleExtend3();
+    UFUNCTION() void HandleExtend4();
+    UFUNCTION() void HandleExtend5();
+    UFUNCTION() void HandleExtend6();
+    UFUNCTION() void HandleExtend7();
 
     TArray<FMatchResult> LastRoundResults;
     TArray<FMatchSnapshot> LastRoundSnapshots;

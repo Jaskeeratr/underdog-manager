@@ -1,5 +1,7 @@
 #include "LeagueGameSubsystem.h"
+#include "ContractService.h"
 #include "FreeAgencyService.h"
+#include "GameRecapService.h"
 #include "LeagueGenerator.h"
 #include "LeagueService.h"
 #include "ManagementService.h"
@@ -128,6 +130,24 @@ int32 ULeagueGameSubsystem::GetChemistry(const FGuid& TeamId) const
     const FTeamState* Team = League.Teams.FindByPredicate(
         [&TeamId](const FTeamState& T) { return T.TeamId == TeamId; });
     return Team ? Team->Chemistry : 50;
+}
+
+bool ULeagueGameSubsystem::OfferExtension(const FGuid& TeamId, const FGuid& PlayerId,
+    int64 OfferedSalary, int32 OfferedYears, FString& OutError)
+{
+    if (!FContractService::OfferExtension(League, TeamId, PlayerId, OfferedSalary, OfferedYears, OutError)) { return false; }
+    OnLeagueChanged.Broadcast();
+    return true;
+}
+
+TArray<FExtensionOffer> ULeagueGameSubsystem::GetEligibleExtensions(const FGuid& TeamId) const
+{
+    return FContractService::GetEligibleExtensions(League, TeamId);
+}
+
+FGameRecap ULeagueGameSubsystem::BuildGameRecap(const FMatchResult& Result, const FMatchSnapshot& Snapshot) const
+{
+    return FGameRecapService::BuildRecap(Result, Snapshot);
 }
 
 bool ULeagueGameSubsystem::SaveLeagueAsync(const FString& SlotName, FString& OutError)

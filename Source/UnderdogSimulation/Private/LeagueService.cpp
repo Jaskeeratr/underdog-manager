@@ -6,6 +6,7 @@
 #include "AIManagerService.h"
 #include "AwardsService.h"
 #include "TradeService.h"
+#include "RivalryService.h"
 
 FGuid FLeagueService::PlayerTeamId;
 
@@ -37,6 +38,16 @@ bool FLeagueService::BuildSnapshot(
     OutSnapshot.Seed = static_cast<int64>(GetTypeHash(Game.GameId) ^ static_cast<uint64>(League.LeagueSeed));
     OutSnapshot.HomeTeam = *Home;
     OutSnapshot.AwayTeam = *Away;
+    const int32 HomeRivalryBonus = FRivalryService::GetMoraleBonus(League, Home->TeamId, Away->TeamId);
+    const int32 AwayRivalryBonus = FRivalryService::GetMoraleBonus(League, Away->TeamId, Home->TeamId);
+    if (HomeRivalryBonus > 0)
+    {
+        for (FAthleteState& S : OutSnapshot.HomeTeam.PlayerStates) { S.Morale = FMath::Min(100, S.Morale + HomeRivalryBonus); }
+    }
+    if (AwayRivalryBonus > 0)
+    {
+        for (FAthleteState& S : OutSnapshot.AwayTeam.PlayerStates) { S.Morale = FMath::Min(100, S.Morale + AwayRivalryBonus); }
+    }
     return true;
 }
 
@@ -103,6 +114,9 @@ void FLeagueService::ApplyResult(FLeagueState& League, FScheduledGame& Game, con
     FChemistryService::UpdateMoraleAfterGame(*Away, !bHomeWon, bCloseGame);
     FChemistryService::UpdateChemistryAfterGame(*Home, bHomeWon, League);
     FChemistryService::UpdateChemistryAfterGame(*Away, !bHomeWon, League);
+    const int32 ScoreDiff = Result.HomeScore - Result.AwayScore;
+    const bool bIsPlayoff = Game.Round >= 22;
+    FRivalryService::UpdateAfterGame(League, Game.HomeTeamId, Game.AwayTeamId, ScoreDiff, bIsPlayoff);
 }
 
 bool FLeagueService::SimulateGame(FLeagueState& League, const FGuid& GameId, FMatchResult& OutResult, FString& OutError)

@@ -48,6 +48,12 @@ public:
     UFUNCTION(BlueprintPure, Category="Underdog|FreeAgency") TArray<FFreeAgent> GetFreeAgentPool() const { return League.Offseason.FreeAgentPool; }
     UFUNCTION(BlueprintPure, Category="Underdog|Chemistry") int32 GetChemistry(const FGuid& TeamId) const;
     UFUNCTION(BlueprintPure, Category="Underdog|Chemistry") TArray<FMentorship> GetMentorships() const { return League.Mentorships; }
+    UFUNCTION(BlueprintPure, Category="Underdog|History") FLeagueHistory GetLeagueHistory() const { return League.History; }
+    UFUNCTION(BlueprintPure, Category="Underdog|Rivalry") TArray<FRivalry> GetRivalries() const { return League.Rivalries; }
+    UFUNCTION(BlueprintCallable, Category="Underdog|Contract") bool OfferExtension(const FGuid& TeamId,
+        const FGuid& PlayerId, int64 OfferedSalary, int32 OfferedYears, FString& OutError);
+    UFUNCTION(BlueprintPure, Category="Underdog|Contract") TArray<FExtensionOffer> GetEligibleExtensions(const FGuid& TeamId) const;
+    FGameRecap BuildGameRecap(const FMatchResult& Result, const FMatchSnapshot& Snapshot) const;
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool SaveLeagueAsync(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool LoadLeague(const FString& SlotName, FString& OutError);
     UFUNCTION(BlueprintCallable, Category="Underdog|Save") bool DeleteSaveSlot(const FString& SlotName);

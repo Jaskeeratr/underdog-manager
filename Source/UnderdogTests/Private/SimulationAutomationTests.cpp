@@ -12,6 +12,10 @@
 #include "OffseasonService.h"
 #include "TradeService.h"
 #include "AIManagerService.h"
+#include "ContractService.h"
+#include "GameRecapService.h"
+#include "LeagueHistoryService.h"
+#include "RivalryService.h"
 #include "UnderdogSaveGame.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -997,7 +1001,178 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSaveSchemaVersionTest,
 
 bool FSaveSchemaVersionTest::RunTest(const FString& Parameters)
 {
-    TestEqual(TEXT("Schema version is 4"), UUnderdogSaveGame::CurrentSchemaVersion, 4);
+    TestEqual(TEXT("Schema version is 5"), UUnderdogSaveGame::CurrentSchemaVersion, 5);
+    return true;
+}
+
+// ── Phase 5 Tests ──────────────────────────────────────────────────────
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGameRecapTest,
+    "Underdog.Phase5.GameRecap",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGameRecapTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(880088ULL);
+    FString Error;
+    TArray<FMatchResult> Results;
+    FLeagueService::AdvanceCurrentRound(League, Results, Error);
+
+    TestTrue(TEXT("Round produced results"), Results.Num() > 0);
+
+    const FMatchResult& Result = Results[0];
+    FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [&Result](const FScheduledGame& G) { return G.GameId == Result.GameId; });
+    TestNotNull(TEXT("Game found in schedule"), Game);
+
+    FMatchSnapshot Snapshot;
+    Snapshot.GameId = Result.GameId;
+    Snapshot.HomeTeam = *League.Teams.FindByPredicate(
+        [Game](const FTeamState& T) { return T.TeamId == Game->HomeTeamId; });
+    Snapshot.AwayTeam = *League.Teams.FindByPredicate(
+        [Game](const FTeamState& T) { return T.TeamId == Game->AwayTeamId; });
+
+    FGameRecap Recap = FGameRecapService::BuildRecap(Result, Snapshot);
+
+    TestTrue(TEXT("Recap has quarter scores"), Recap.QuarterScores.Num() >= 4);
+    TestTrue(TEXT("Recap has play-by-play entries"), Recap.PlayByPlay.Num() > 0);
+    TestEqual(TEXT("Final home score matches"), Recap.FinalHomeScore, Result.HomeScore);
+    TestEqual(TEXT("Final away score matches"), Recap.FinalAwayScore, Result.AwayScore);
+
+    bool bHasHighlight = false;
+    for (const FPlayByPlayEntry& Entry : Recap.PlayByPlay)
+    {
+        if (Entry.bHighlight) { bHasHighlight = true; break; }
+    }
+    TestTrue(TEXT("Recap contains highlight entries"), bHasHighlight);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLeagueHistoryTest,
+    "Underdog.Phase5.LeagueHistory",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLeagueHistoryTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(990099ULL);
+    FString Error;
+
+    for (int32 R = 0; R < 22; ++R)
+    {
+        TArray<FMatchResult> Results;
+        FLeagueService::AdvanceCurrentRound(League, Results, Error);
+    }
+    for (int32 R = 0; R < 40; ++R) { FLeagueService::AdvancePlayoffs(League, Error); }
+
+    TestTrue(TEXT("Season completed"), League.Phase == ESeasonPhase::Complete);
+    FOffseasonService::StartOffseason(League, Error);
+
+    TestTrue(TEXT("Championship recorded"), League.History.Championships.Num() >= 1);
+    TestTrue(TEXT("Champion name not empty"), !League.History.Championships.Last().ChampionName.IsEmpty());
+    TestTrue(TEXT("All-time leaders populated"), League.History.AllTimeLeaders.Num() > 0);
+
+    TArray<FAllTimeLeader> TopScorers = FLeagueHistoryService::GetTopScorers(League.History, 5);
+    TestTrue(TEXT("Top scorers returned"), TopScorers.Num() > 0);
+    TestTrue(TEXT("Top scorer has points"), TopScorers[0].TotalPoints > 0);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FContractExtensionTest,
+    "Underdog.Phase5.ContractExtension",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FContractExtensionTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(110011ULL);
+
+    League.Teams[0].Players[0].Contract.YearsRemaining = 1;
+    const FGuid& PlayerId = League.Teams[0].Players[0].PlayerId;
+    const FGuid& TeamId = League.Teams[0].TeamId;
+
+    TArray<FExtensionOffer> Eligible = FContractService::GetEligibleExtensions(League, TeamId);
+    TestTrue(TEXT("Player eligible for extension"), Eligible.Num() > 0);
+
+    FExtensionOffer Asking = FContractService::CalculateAskingPrice(
+        League.Teams[0].Players[0], &League.Teams[0].PlayerStates[0]);
+    TestTrue(TEXT("Asking salary positive"), Asking.AskingSalary > 0);
+    TestTrue(TEXT("Asking years positive"), Asking.AskingYears > 0);
+
+    FString Error;
+    bool bResult = FContractService::OfferExtension(League, TeamId, PlayerId,
+        Asking.AskingSalary, Asking.AskingYears, Error);
+    if (bResult)
+    {
+        TestTrue(TEXT("Contract years updated"), League.Teams[0].Players[0].Contract.YearsRemaining == Asking.AskingYears);
+    }
+    else
+    {
+        TestTrue(TEXT("Rejection has error message"), !Error.IsEmpty());
+    }
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRivalrySystemTest,
+    "Underdog.Phase5.RivalrySystem",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRivalrySystemTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(220022ULL);
+
+    const FGuid& Team0 = League.Teams[0].TeamId;
+    const FGuid& Team1 = League.Teams[1].TeamId;
+
+    TestTrue(TEXT("No rivalry initially"), FRivalryService::GetRivalry(League, Team0, Team1) == nullptr);
+
+    FRivalryService::UpdateAfterGame(League, Team0, Team1, 3, false);
+    const FRivalry* Rivalry = FRivalryService::GetRivalry(League, Team0, Team1);
+    TestNotNull(TEXT("Rivalry created after close game"), Rivalry);
+    TestTrue(TEXT("Intensity > 0"), Rivalry->Intensity > 0);
+    TestEqual(TEXT("Close games tracked"), Rivalry->CloseGames, 1);
+
+    FRivalryService::UpdateAfterGame(League, Team0, Team1, 2, true);
+    Rivalry = FRivalryService::GetRivalry(League, Team0, Team1);
+    TestTrue(TEXT("Playoff meeting increases intensity"), Rivalry->Intensity >= 20);
+    TestEqual(TEXT("Playoff meetings tracked"), Rivalry->PlayoffMeetings, 1);
+
+    const int32 IntensityBefore = Rivalry->Intensity;
+    FRivalryService::DecayRivalries(League);
+    Rivalry = FRivalryService::GetRivalry(League, Team0, Team1);
+    if (Rivalry)
+    {
+        TestTrue(TEXT("Decay reduces intensity"), Rivalry->Intensity < IntensityBefore);
+    }
+
+    TArray<FRivalry> Top = FRivalryService::GetTopRivalries(League, 3);
+    TestTrue(TEXT("Top rivalries returned"), Top.Num() > 0);
+
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRivalryMoraleBonusTest,
+    "Underdog.Phase5.RivalryMoraleBonus",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRivalryMoraleBonusTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(330033ULL);
+
+    const FGuid& Team0 = League.Teams[0].TeamId;
+    const FGuid& Team1 = League.Teams[1].TeamId;
+
+    TestEqual(TEXT("No bonus without rivalry"), FRivalryService::GetMoraleBonus(League, Team0, Team1), 0);
+
+    for (int32 I = 0; I < 10; ++I)
+    {
+        FRivalryService::UpdateAfterGame(League, Team0, Team1, 2, true);
+    }
+
+    const int32 Bonus = FRivalryService::GetMoraleBonus(League, Team0, Team1);
+    TestTrue(TEXT("Strong rivalry gives morale bonus"), Bonus > 0);
+
     return true;
 }
 
