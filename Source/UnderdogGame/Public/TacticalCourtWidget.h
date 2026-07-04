@@ -88,4 +88,7 @@ private:
     void StopAudio();
     void PlayBounce();
     void PlayBuzzer();
+
+    TArray<float> FrameTimes;
+    void LogPerformanceReport() const;
 };

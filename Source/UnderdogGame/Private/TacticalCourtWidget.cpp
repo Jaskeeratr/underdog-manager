@@ -523,6 +523,8 @@ void UTacticalCourtWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
     if (bFinished || !Presentation.GameId.IsValid()) { return; }
     if (!Presentation.Highlights.IsValidIndex(CurrentCueIndex)) { return; }
 
+    FrameTimes.Add(InDeltaTime * 1000.0f);
+
     if (!bPaused)
     {
         const FHighlightCue& Cue = Presentation.Highlights[CurrentCueIndex];
@@ -555,6 +557,7 @@ void UTacticalCourtWidget::AdvanceCue()
         bFinished = true;
         RefreshScoreboard();
         PlayBuzzer();
+        LogPerformanceReport();
         OnFinished.ExecuteIfBound();
     }
     else
@@ -592,6 +595,7 @@ void UTacticalCourtWidget::HandleExit()
 {
     bFinished = true;
     StopAudio();
+    LogPerformanceReport();
     OnFinished.ExecuteIfBound();
 }
 
@@ -631,4 +635,27 @@ void UTacticalCourtWidget::PlayBuzzer()
     {
         UGameplayStatics::PlaySound2D(this, BuzzerSound, 0.35f);
     }
+}
+
+void UTacticalCourtWidget::LogPerformanceReport() const
+{
+    if (FrameTimes.IsEmpty()) { return; }
+
+    float Min = FrameTimes[0], Max = FrameTimes[0], Sum = 0.0f;
+    int32 DroppedFrames = 0;
+    for (float Ms : FrameTimes)
+    {
+        Min = FMath::Min(Min, Ms);
+        Max = FMath::Max(Max, Ms);
+        Sum += Ms;
+        if (Ms > 33.33f) { ++DroppedFrames; }
+    }
+    const float Avg = Sum / FrameTimes.Num();
+
+    UE_LOG(LogTemp, Log, TEXT("=== Broadcast Performance Report ==="));
+    UE_LOG(LogTemp, Log, TEXT("  Frames: %d  |  Duration: %.1fs"), FrameTimes.Num(), Sum / 1000.0f);
+    UE_LOG(LogTemp, Log, TEXT("  Frame time — Min: %.1fms  Avg: %.1fms  Max: %.1fms"), Min, Avg, Max);
+    UE_LOG(LogTemp, Log, TEXT("  Dropped frames (>33ms): %d (%.1f%%)"),
+        DroppedFrames, FrameTimes.Num() > 0 ? (DroppedFrames * 100.0f / FrameTimes.Num()) : 0.0f);
+    UE_LOG(LogTemp, Log, TEXT("===================================="));
 }
