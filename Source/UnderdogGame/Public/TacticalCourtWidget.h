@@ -5,9 +5,11 @@
 #include "UnderdogCoreTypes.h"
 #include "TacticalCourtWidget.generated.h"
 
+class UAudioComponent;
 class UBorder;
 class UCanvasPanel;
 class UCanvasPanelSlot;
+class USoundWaveProcedural;
 class UTextBlock;
 
 DECLARE_DELEGATE(FOnTacticalBroadcastFinished);
@@ -76,4 +78,14 @@ private:
 
     TArray<FCourtPos> HomeBasePositions;
     TArray<FCourtPos> AwayBasePositions;
+
+    UPROPERTY() TObjectPtr<USoundWaveProcedural> CrowdSound;
+    UPROPERTY() TObjectPtr<USoundWaveProcedural> BounceSound;
+    UPROPERTY() TObjectPtr<USoundWaveProcedural> BuzzerSound;
+    UPROPERTY() TObjectPtr<UAudioComponent> CrowdAudioComp;
+
+    void StartAudio();
+    void StopAudio();
+    void PlayBounce();
+    void PlayBuzzer();
 };

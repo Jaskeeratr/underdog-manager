@@ -1,6 +1,9 @@
 #include "TacticalCourtWidget.h"
+#include "ProceduralAudioService.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/CanvasPanel.h"
@@ -261,6 +264,7 @@ void UTacticalCourtWidget::InitializeBroadcast(const FMatchPresentationPackage& 
     PlaybackSpeed = 1.0f;
     RefreshScoreboard();
     ApplyPositions(0.0f);
+    StartAudio();
 }
 
 // ── Choreography per highlight template ──
@@ -550,12 +554,14 @@ void UTacticalCourtWidget::AdvanceCue()
     {
         bFinished = true;
         RefreshScoreboard();
+        PlayBuzzer();
         OnFinished.ExecuteIfBound();
     }
     else
     {
         RefreshScoreboard();
         ApplyPositions(0.0f);
+        PlayBounce();
     }
 }
 
@@ -585,5 +591,44 @@ void UTacticalCourtWidget::HandleSpeed()
 void UTacticalCourtWidget::HandleExit()
 {
     bFinished = true;
+    StopAudio();
     OnFinished.ExecuteIfBound();
+}
+
+void UTacticalCourtWidget::StartAudio()
+{
+    CrowdSound = FProceduralAudioService::CreateCrowdAmbience(this);
+    BounceSound = FProceduralAudioService::CreateBallBounce(this);
+    BuzzerSound = FProceduralAudioService::CreateBuzzer(this);
+
+    if (CrowdSound)
+    {
+        CrowdAudioComp = UGameplayStatics::SpawnSound2D(this, CrowdSound, 0.15f);
+    }
+}
+
+void UTacticalCourtWidget::StopAudio()
+{
+    if (CrowdAudioComp)
+    {
+        CrowdAudioComp->Stop();
+        CrowdAudioComp = nullptr;
+    }
+}
+
+void UTacticalCourtWidget::PlayBounce()
+{
+    if (BounceSound)
+    {
+        UGameplayStatics::PlaySound2D(this, BounceSound, 0.5f);
+    }
+}
+
+void UTacticalCourtWidget::PlayBuzzer()
+{
+    StopAudio();
+    if (BuzzerSound)
+    {
+        UGameplayStatics::PlaySound2D(this, BuzzerSound, 0.35f);
+    }
 }
