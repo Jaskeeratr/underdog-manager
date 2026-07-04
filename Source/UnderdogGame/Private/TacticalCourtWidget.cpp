@@ -260,6 +260,7 @@ void UTacticalCourtWidget::InitializeBroadcast(const FMatchPresentationPackage& 
     bFinished = false;
     PlaybackSpeed = 1.0f;
     RefreshScoreboard();
+    ApplyPositions(0.0f);
 }
 
 // ── Choreography per highlight template ──
