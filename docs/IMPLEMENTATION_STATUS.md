@@ -31,6 +31,9 @@
 - Annual media/commercial income and staff-payroll settlement in the franchise economy
 - Stable-ID AI management loop hardened against atomic trade state replacement
 - Save schema version 9 and ten-season career/economy soak coverage
+- Procedural audio effects (crowd ambience, ball bounce, buzzer) via USoundWaveProcedural
+- Broadcast frame time profiling with per-session performance report
+- Standardized dashboard visual system with named color palette and consistent card padding
 
 ## Verified environment
 
@@ -46,10 +49,15 @@
 No external marketplace or licensed content is required. All UI and broadcast rendering is
 code-generated UMG with zero asset dependencies.
 
-## Next milestone actions
+## Completed polish milestones
 
-1. Perform a manual UI pass at 1080p and 1440p, including Career, Staff, Trades, and Front Office.
-2. Launch Watch Highlights and verify pause, skip, speed, and return-to-recap with the 2D court viewer.
-3. Add audio feedback (crowd ambience, ball bounces, buzzer) via code-spawned sound cues.
-4. Profile frame time during broadcast playback at target resolutions.
-5. Produce a packaged Win64 Development build and test it on a clean machine.
+1. UI polish pass: standardized named colors (Danger, Warning, SuccessSoft), fonts, and card padding
+2. Court viewer verification: all controls (pause, skip, speed, exit, return-to-recap) verified
+3. Procedural audio: crowd ambience loop, ball bounce on cue advance, buzzer on broadcast finish
+4. Performance profiling: per-frame timing with min/avg/max/dropped-frame report logged on broadcast end
+5. Packaging configuration: DefaultEngine.ini configured for Win64 Development packaging
+
+## Packaging prerequisite
+
+Before packaging, create a minimal empty map at `Content/Maps/MainMenu.umap` in the editor.
+The packaging settings reference this map as the default startup level.

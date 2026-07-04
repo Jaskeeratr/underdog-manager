@@ -35,6 +35,8 @@ This repository contains a playable C++ management-game vertical slice with zero
   employment status, explainable job offers, and club movement
 - multi-season franchise settlement with media/commercial income and staff payroll accounting
 - save schema version 9 and a deterministic ten-season career/economy soak test
+- procedural audio feedback (crowd ambience, ball bounces, buzzer) with zero external audio assets
+- broadcast frame time profiling with dropped-frame reporting
 
 The project requires no marketplace or licensed content. All rendering is code-generated UMG.
 
