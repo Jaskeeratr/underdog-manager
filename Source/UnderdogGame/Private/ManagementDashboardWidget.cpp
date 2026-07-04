@@ -41,6 +41,9 @@ namespace DashboardStyle
     const FLinearColor Secondary(0.58f, 0.61f, 0.67f, 1.0f);
     const FLinearColor Success(0.10f, 0.82f, 0.68f, 1.0f);
     const FLinearColor Gold(0.96f, 0.72f, 0.22f, 1.0f);
+    const FLinearColor Danger(0.95f, 0.32f, 0.28f, 1.0f);
+    const FLinearColor Warning(0.95f, 0.80f, 0.25f, 1.0f);
+    const FLinearColor SuccessSoft(0.02f, 0.18f, 0.14f, 1.0f);
 
     FSlateChildSize Size(float Value, ESlateSizeRule::Type Rule = ESlateSizeRule::Fill)
     {
@@ -427,11 +430,11 @@ void UManagementDashboardWidget::RefreshDashboard()
     RecordText->SetText(FText::FromString(FString::Printf(TEXT("%d  -  %d"), Club.Wins, Club.Losses)));
     ChemistryText->SetText(FText::FromString(FString::Printf(TEXT("%d"), Club.Chemistry)));
     ChemistryText->SetColorAndOpacity(FSlateColor(Club.Chemistry >= 65 ? DashboardStyle::Success
-        : Club.Chemistry <= 35 ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Accent));
+        : Club.Chemistry <= 35 ? DashboardStyle::Danger : DashboardStyle::Accent));
     SalaryCapText->SetText(FText::FromString(FString::Printf(
         TEXT("$%.1fM / $%.1fM"), Club.TotalSalary() / 100000000.0, Club.SalaryCapMinorUnits / 100000000.0)));
     SalaryCapText->SetColorAndOpacity(FSlateColor(Club.IsOverCap()
-        ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Success));
+        ? DashboardStyle::Danger : DashboardStyle::Success));
 
     const FScheduledGame* NextGame = League.Schedule.FindByPredicate([&Club](const FScheduledGame& Game)
     {
@@ -610,11 +613,11 @@ void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League,
         {
             Row->AddChildToHorizontalBox(MakeText(
                 FString::Printf(TEXT("INJ %d"), State->InjuryGamesRemaining), 10,
-                FLinearColor(0.95f, 0.32f, 0.28f, 1.0f), true))
+                DashboardStyle::Danger, true))
                 ->SetSize(DashboardStyle::Size(0.3f));
             UTextBlock* InjDesc = MakeText(
                 State->InjuryDescription.IsEmpty() ? TEXT("Injured") : State->InjuryDescription,
-                9, FLinearColor(0.95f, 0.32f, 0.28f, 1.0f));
+                9, DashboardStyle::Danger);
             InjDesc->SetJustification(ETextJustify::Right);
             Row->AddChildToHorizontalBox(InjDesc)->SetSize(DashboardStyle::Size(0.87f));
         }
@@ -625,7 +628,7 @@ void UManagementDashboardWidget::RefreshRosterScreen(const FLeagueState& League,
                 ->SetSize(DashboardStyle::Size(0.3f));
             Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("MOR %d"), State->Morale), 10,
                 State->Morale >= 60 ? DashboardStyle::Success
-                : State->Morale <= 35 ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Secondary, true))
+                : State->Morale <= 35 ? DashboardStyle::Danger : DashboardStyle::Secondary, true))
                 ->SetSize(DashboardStyle::Size(0.3f));
             const FSeasonStats* Stats = League.SeasonStats.FindByPredicate(
                 [&PlayerId](const FSeasonStats& S) { return S.PlayerId == PlayerId; });
@@ -671,7 +674,7 @@ void UManagementDashboardWidget::RefreshScheduleScreen(const FLeagueState& Leagu
             const int32 ClubScore = bHome ? Game.HomeScore : Game.AwayScore;
             const int32 OpponentScore = bHome ? Game.AwayScore : Game.HomeScore;
             Result = FString::Printf(TEXT("%s  %d-%d"), ClubScore > OpponentScore ? TEXT("W") : TEXT("L"), ClubScore, OpponentScore);
-            ResultColor = ClubScore > OpponentScore ? DashboardStyle::Success : FLinearColor(0.95f, 0.32f, 0.28f, 1.0f);
+            ResultColor = ClubScore > OpponentScore ? DashboardStyle::Success : DashboardStyle::Danger;
         }
         UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
         Row->AddChildToHorizontalBox(MakeText(FString::Printf(TEXT("R%02d"), Game.Round + 1), 10,
@@ -1069,7 +1072,7 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
                 }
                 const FTradeEvaluation Evaluation = FTradeService::EvaluateTradeDetailed(League, PreviewOffer);
                 UBorder* EvaluationCard = MakeCard(Evaluation.bAccepted
-                    ? FLinearColor(0.02f, 0.18f, 0.14f, 1.0f) : DashboardStyle::AccentSoft);
+                    ? DashboardStyle::SuccessSoft : DashboardStyle::AccentSoft);
                 EvaluationCard->SetPadding(FMargin(12.0f, 9.0f));
                 UVerticalBox* EvaluationContent = WidgetTree->ConstructWidget<UVerticalBox>();
                 EvaluationCard->SetContent(EvaluationContent);
@@ -1110,7 +1113,7 @@ void UManagementDashboardWidget::RefreshTradeScreen(const FLeagueState& League, 
         const FString StatusStr = Trade.Status == ETradeStatus::Accepted ? TEXT("ACCEPTED")
             : Trade.Status == ETradeStatus::Rejected ? TEXT("REJECTED") : TEXT("EXPIRED");
         const FLinearColor StatusColor = Trade.Status == ETradeStatus::Accepted
-            ? DashboardStyle::Success : FLinearColor(0.95f, 0.32f, 0.28f, 1.0f);
+            ? DashboardStyle::Success : DashboardStyle::Danger;
         TradeList->AddChildToVerticalBox(MakeText(FString::Printf(TEXT("R%d  •  %s  •  %d for %d players"),
             Trade.ProposedRound + 1, *StatusStr, Trade.Outgoing.Num(), Trade.Incoming.Num()),
             10, StatusColor, true))->SetPadding(FMargin(0.0f, 3.0f));
@@ -1317,7 +1320,7 @@ void UManagementDashboardWidget::HandleBuildTrade()
         RefreshDashboard();
         SetScreen(7);
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -1552,7 +1555,7 @@ void UManagementDashboardWidget::HandleSignFreeAgent()
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -1574,7 +1577,7 @@ void UManagementDashboardWidget::HandleSimulateRound()
         else
         {
             StatusText->SetText(FText::FromString(Error));
-            StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+            StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
         }
         return;
     }
@@ -1671,7 +1674,7 @@ void UManagementDashboardWidget::ExecuteSimulateRound()
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -1940,7 +1943,7 @@ void UManagementDashboardWidget::HandleAdvanceOffseason()
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -1962,7 +1965,7 @@ void UManagementDashboardWidget::DraftProspectAtSlot(int32 SlotIndex)
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -2084,7 +2087,7 @@ void UManagementDashboardWidget::SaveToSlot(int32 SlotIndex)
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -2105,7 +2108,7 @@ void UManagementDashboardWidget::LoadFromSlot(int32 SlotIndex)
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -2369,7 +2372,7 @@ void UManagementDashboardWidget::RefreshContractsScreen(const FLeagueState& Leag
     ContractsList->AddChildToVerticalBox(MakeText(
         FString::Printf(TEXT("Team Salary: $%lldM / $%lldM cap"),
             Club.TotalSalary() / 1000000, Club.SalaryCapMinorUnits / 1000000),
-        10, Club.IsOverCap() ? FLinearColor(0.95f, 0.32f, 0.28f, 1.0f) : DashboardStyle::Secondary))
+        10, Club.IsOverCap() ? DashboardStyle::Danger : DashboardStyle::Secondary))
         ->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 0.0f));
 }
 
@@ -2400,7 +2403,7 @@ void UManagementDashboardWidget::OfferExtensionAtSlot(int32 SlotIndex)
     else
     {
         StatusText->SetText(FText::FromString(Error));
-        StatusText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)));
+        StatusText->SetColorAndOpacity(FSlateColor(DashboardStyle::Danger));
     }
 }
 
@@ -2448,7 +2451,7 @@ void UManagementDashboardWidget::RefreshRivalriesScreen(const FLeagueState& Leag
 
         FString IntensityLabel;
         FLinearColor IntensityColor;
-        if (Rivalry.Intensity >= 75) { IntensityLabel = TEXT("HEATED"); IntensityColor = FLinearColor(0.95f, 0.32f, 0.28f, 1.0f); }
+        if (Rivalry.Intensity >= 75) { IntensityLabel = TEXT("HEATED"); IntensityColor = DashboardStyle::Danger; }
         else if (Rivalry.Intensity >= 50) { IntensityLabel = TEXT("INTENSE"); IntensityColor = DashboardStyle::Accent; }
         else if (Rivalry.Intensity >= 25) { IntensityLabel = TEXT("GROWING"); IntensityColor = DashboardStyle::Success; }
         else { IntensityLabel = TEXT("BUDDING"); IntensityColor = DashboardStyle::Secondary; }
@@ -2524,7 +2527,7 @@ void UManagementDashboardWidget::RefreshMatchCenterScreen(const FLeagueState& Le
     FString Implication = FMatchPresentationService::ComputeStandingsImplication(League, Game->HomeTeamId, Game->AwayTeamId);
     if (!Implication.IsEmpty())
     {
-        MatchCenterList->AddChildToVerticalBox(MakeText(Implication, 11, FLinearColor(0.95f, 0.80f, 0.25f, 1.0f)))
+        MatchCenterList->AddChildToVerticalBox(MakeText(Implication, 11, DashboardStyle::Warning))
             ->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
     }
 
@@ -2532,13 +2535,13 @@ void UManagementDashboardWidget::RefreshMatchCenterScreen(const FLeagueState& Le
     {
         MatchCenterList->AddChildToVerticalBox(MakeText(
             FString::Printf(TEXT("Rivalry intensity: %d"), HomeData.RivalryIntensity),
-            11, FLinearColor(0.95f, 0.32f, 0.28f, 1.0f)))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
+            11, DashboardStyle::Danger))->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
     }
 
     auto AddTeamCard = [&](const FTeamPresentationData& Data, const FString& Label)
     {
         UBorder* Card = MakeCard(DashboardStyle::CardRaised);
-        Card->SetPadding(FMargin(12.0f, 10.0f));
+        Card->SetPadding(FMargin(14.0f, 10.0f));
         UVerticalBox* Content = WidgetTree->ConstructWidget<UVerticalBox>();
         Card->SetContent(Content);
 
@@ -2579,7 +2582,7 @@ void UManagementDashboardWidget::RefreshMatchCenterScreen(const FLeagueState& Le
         if (Data.InjuredPlayers.Num() > 0)
         {
             Content->AddChildToVerticalBox(MakeText(TEXT("INJURED"), 10,
-                FLinearColor(0.95f, 0.32f, 0.28f, 1.0f), true))->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 4.0f));
+                DashboardStyle::Danger, true))->SetPadding(FMargin(0.0f, 8.0f, 0.0f, 4.0f));
             for (const FString& Inj : Data.InjuredPlayers)
             {
                 Content->AddChildToVerticalBox(MakeText(Inj, 9, DashboardStyle::Secondary));
@@ -2672,11 +2675,11 @@ void UManagementDashboardWidget::RefreshPostGameScreen()
     if (Pkg.Recap.QuarterScores.Num() > 0)
     {
         UBorder* QCard = MakeCard(DashboardStyle::Card);
-        QCard->SetPadding(FMargin(12.0f, 8.0f));
+        QCard->SetPadding(FMargin(14.0f, 10.0f));
         UVerticalBox* QContent = WidgetTree->ConstructWidget<UVerticalBox>();
         QCard->SetContent(QContent);
 
-        QContent->AddChildToVerticalBox(MakeText(TEXT("QUARTER SCORES"), 10, DashboardStyle::Accent, true));
+        QContent->AddChildToVerticalBox(MakeText(TEXT("QUARTER SCORES"), 12, DashboardStyle::Accent, true));
 
         UHorizontalBox* HeaderRow = WidgetTree->ConstructWidget<UHorizontalBox>();
         HeaderRow->AddChildToHorizontalBox(MakeText(TEXT(""), 9, DashboardStyle::Secondary))
@@ -2716,7 +2719,7 @@ void UManagementDashboardWidget::RefreshPostGameScreen()
     if (Pkg.Highlights.Num() > 0)
     {
         UBorder* HCard = MakeCard(DashboardStyle::CardRaised);
-        HCard->SetPadding(FMargin(12.0f, 10.0f));
+        HCard->SetPadding(FMargin(14.0f, 10.0f));
         UVerticalBox* HContent = WidgetTree->ConstructWidget<UVerticalBox>();
         HCard->SetContent(HContent);
 
@@ -2748,11 +2751,11 @@ void UManagementDashboardWidget::RefreshPostGameScreen()
     if (Pkg.Recap.PlayByPlay.Num() > 0)
     {
         UBorder* BoxCard = MakeCard(DashboardStyle::Card);
-        BoxCard->SetPadding(FMargin(12.0f, 10.0f));
+        BoxCard->SetPadding(FMargin(14.0f, 10.0f));
         UVerticalBox* BoxContent = WidgetTree->ConstructWidget<UVerticalBox>();
         BoxCard->SetContent(BoxContent);
 
-        BoxContent->AddChildToVerticalBox(MakeText(TEXT("KEY PLAYS"), 10, DashboardStyle::Accent, true));
+        BoxContent->AddChildToVerticalBox(MakeText(TEXT("KEY PLAYS"), 12, DashboardStyle::Accent, true));
 
         int32 Count = 0;
         for (const FPlayByPlayEntry& Entry : Pkg.Recap.PlayByPlay)
@@ -2772,7 +2775,7 @@ void UManagementDashboardWidget::RefreshPostGameScreen()
             PlayRow->AddChildToHorizontalBox(MakeText(
                 FString::Printf(TEXT("%d-%d"), Entry.HomeScore, Entry.AwayScore), 9, DashboardStyle::Accent))
                 ->SetSize(DashboardStyle::Size(0.2f));
-            BoxContent->AddChildToVerticalBox(PlayRow)->SetPadding(FMargin(0.0f, 2.0f, 0.0f, 0.0f));
+            BoxContent->AddChildToVerticalBox(PlayRow)->SetPadding(FMargin(0.0f, 4.0f, 0.0f, 0.0f));
         }
 
         PostGameList->AddChildToVerticalBox(BoxCard)->SetPadding(FMargin(0.0f, 0.0f, 0.0f, 10.0f));
@@ -2984,7 +2987,7 @@ void UManagementDashboardWidget::RefreshStaffScreen(const FLeagueState& League, 
     for (const FStaffMember& Staff : Club.Organization.Staff)
     {
         UBorder* Card = MakeCard(DashboardStyle::Card);
-        Card->SetPadding(FMargin(12.0f, 7.0f));
+        Card->SetPadding(FMargin(12.0f, 8.0f));
         UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
         Card->SetContent(Row);
         Row->AddChildToHorizontalBox(MakeText(RoleName(Staff.Role), 9, DashboardStyle::Accent, true))
@@ -3010,7 +3013,7 @@ void UManagementDashboardWidget::RefreshStaffScreen(const FLeagueState& League, 
         const FStaffMember& Candidate = League.StaffMarket[Index];
         DisplayedStaffCandidateIds.Add(Candidate.StaffId);
         UBorder* Card = MakeCard(DashboardStyle::CardRaised);
-        Card->SetPadding(FMargin(12.0f, 7.0f));
+        Card->SetPadding(FMargin(12.0f, 8.0f));
         UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
         Card->SetContent(Row);
         Row->AddChildToHorizontalBox(MakeText(RoleName(Candidate.Role), 9, DashboardStyle::Secondary, true))
