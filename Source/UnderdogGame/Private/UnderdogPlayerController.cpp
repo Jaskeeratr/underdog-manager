@@ -1,8 +1,6 @@
 #include "UnderdogPlayerController.h"
-#include "BroadcastArenaDirector.h"
-#include "BroadcastHudWidget.h"
-#include "Engine/World.h"
 #include "ManagementDashboardWidget.h"
+#include "TacticalCourtWidget.h"
 
 void AUnderdogPlayerController::BeginPlay()
 {
@@ -24,42 +22,26 @@ void AUnderdogPlayerController::BeginPlay()
 
 bool AUnderdogPlayerController::StartBroadcast(const FMatchPresentationPackage& Presentation)
 {
-    if (BroadcastDirector || Presentation.Highlights.IsEmpty() || !GetWorld()) { return false; }
+    if (CourtWidget || Presentation.Highlights.IsEmpty()) { return false; }
 
-    PreviousViewTarget = GetViewTarget();
-    BroadcastDirector = GetWorld()->SpawnActor<ABroadcastArenaDirector>(
-        FVector::ZeroVector, FRotator::ZeroRotator);
-    if (!BroadcastDirector || !BroadcastDirector->InitializeBroadcast(Presentation, this))
-    {
-        if (BroadcastDirector) { BroadcastDirector->Destroy(); }
-        BroadcastDirector = nullptr;
-        return false;
-    }
+    CourtWidget = CreateWidget<UTacticalCourtWidget>(this, UTacticalCourtWidget::StaticClass());
+    if (!CourtWidget) { return false; }
 
-    BroadcastDirector->OnBroadcastFinished.AddUObject(this, &AUnderdogPlayerController::HandleBroadcastFinished);
-    BroadcastHud = CreateWidget<UBroadcastHudWidget>(this, UBroadcastHudWidget::StaticClass());
-    if (BroadcastHud)
-    {
-        BroadcastHud->InitializeForDirector(BroadcastDirector);
-        BroadcastHud->AddToViewport(200);
-    }
+    CourtWidget->InitializeBroadcast(Presentation);
+    CourtWidget->OnFinished.BindUObject(this, &AUnderdogPlayerController::HandleBroadcastFinished);
+    CourtWidget->AddToViewport(200);
+
     if (Dashboard) { Dashboard->SetVisibility(ESlateVisibility::Collapsed); }
     return true;
 }
 
 void AUnderdogPlayerController::HandleBroadcastFinished()
 {
-    if (BroadcastHud)
+    if (CourtWidget)
     {
-        BroadcastHud->RemoveFromParent();
-        BroadcastHud = nullptr;
-    }
-    if (PreviousViewTarget) { SetViewTarget(PreviousViewTarget); }
-    if (BroadcastDirector)
-    {
-        BroadcastDirector->OnBroadcastFinished.RemoveAll(this);
-        BroadcastDirector->Destroy();
-        BroadcastDirector = nullptr;
+        CourtWidget->OnFinished.Unbind();
+        CourtWidget->RemoveFromParent();
+        CourtWidget = nullptr;
     }
     if (Dashboard)
     {

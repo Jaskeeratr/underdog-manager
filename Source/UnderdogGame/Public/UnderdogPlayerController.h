@@ -5,9 +5,8 @@
 #include "UnderdogCoreTypes.h"
 #include "UnderdogPlayerController.generated.h"
 
-class ABroadcastArenaDirector;
-class UBroadcastHudWidget;
 class UManagementDashboardWidget;
+class UTacticalCourtWidget;
 
 UCLASS()
 class UNDERDOGGAME_API AUnderdogPlayerController : public APlayerController
@@ -24,7 +23,5 @@ private:
     void HandleBroadcastFinished();
 
     UPROPERTY() TObjectPtr<UManagementDashboardWidget> Dashboard;
-    UPROPERTY() TObjectPtr<UBroadcastHudWidget> BroadcastHud;
-    UPROPERTY() TObjectPtr<ABroadcastArenaDirector> BroadcastDirector;
-    UPROPERTY() TObjectPtr<AActor> PreviousViewTarget;
+    UPROPERTY() TObjectPtr<UTacticalCourtWidget> CourtWidget;
 };

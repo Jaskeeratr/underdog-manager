@@ -1,10 +1,10 @@
 # Underdog Manager
 
-Underdog Manager is a C++-first basketball club-management game targeting Unreal Engine 5.8 and Windows. The player inherits the weakest club in a fictional 12-team league and tries to rebuild it over a 22-game season.
+Underdog Manager is a C++-first basketball club-management game targeting Unreal Engine 5.8 and Windows. The player inherits the weakest club in a fictional 12-team league and tries to rebuild it over multiple seasons.
 
 ## Current implementation
 
-This repository contains a playable C++ management-game vertical slice through the Phase 10 release-candidate systems pass:
+This repository contains a playable C++ management-game vertical slice with zero external asset dependencies:
 
 - UE 5.8 project and runtime module boundaries
 - deterministic, versioned random number generator
@@ -18,26 +18,25 @@ This repository contains a playable C++ management-game vertical slice through t
 - deterministic post-game fatigue, morale, form, injury, and recovery effects
 - game-instance league orchestration
 - asynchronous save snapshots and schema validation
-- code-created ten-player highlight placeholder with skip support
 - Unreal automation tests for determinism, schedule integrity, match integrity, and soak simulation
 - native management screens for roster, schedule, standings, scouting, training, tactics, trades,
   playoffs, awards, offseason, saves, league history, contracts, rivalries, Match Center, and post-game recap
 - multi-season progression with contracts, free agency, draft, development, chemistry, and AI management
 - deterministic highlight-cue generation and text-based match presentation
-- Phase 7 placeholder 3D broadcast playback with ten athletes, a ball, camera presets, scoreboard,
-  pause, skip, speed, and exit-to-recap controls
-- Phase 8 franchise operations with attendance, ticket pricing, game-day finances, fan support,
+- 2D tactical court viewer with animated player dots, ball trajectories, per-template choreography,
+  broadcast-style scoreboard, and playback controls (pause, skip, speed, exit)
+- franchise operations with attendance, ticket pricing, game-day finances, fan support,
   four facility tracks, owner objectives, and owner confidence
-- Phase 9 organization management with six staff roles, contracts, hiring, AI staffing,
+- organization management with six staff roles, contracts, hiring, AI staffing,
   tactical familiarity, and coaching effects on development, scouting, and medical outcomes
 - explainable trade evaluation with roster, salary-matching, package-size, and atomic-execution rules
 - high-contrast broadcast-inspired management shell with dedicated Staff & Coaching workflows
-- Phase 10 manager career progression with persistent records, season evaluations, reputation,
+- manager career progression with persistent records, season evaluations, reputation,
   employment status, explainable job offers, and club movement
 - multi-season franchise settlement with media/commercial income and staff payroll accounting
 - save schema version 9 and a deterministic ten-season career/economy soak test
 
-The project deliberately does not include marketplace content. Assets must be selected, licensed, and recorded before the 3D feasibility gate can be approved.
+The project requires no marketplace or licensed content. All rendering is code-generated UMG.
 
 ## Requirements
 
@@ -59,8 +58,8 @@ The project is compiled and verified with Unreal Engine 5.8.0, MSVC 19.44, and W
 
 In the Unreal Editor, open **Tools > Test Automation**, search for `Underdog`, and run the suite.
 
-Verified baseline: the UE 5.8 editor target builds successfully and all 45 registered `Underdog`
-automation tests pass headlessly with `-NullRHI`, including the ten-season Phase 10 career,
+Verified baseline: the UE 5.8 editor target builds successfully and all 47 registered `Underdog`
+automation tests pass headlessly with `-NullRHI`, including the ten-season career,
 roster, staff-payroll, and franchise-cash soak.
 
 For command-line verification:
@@ -72,15 +71,18 @@ For command-line verification:
   -unattended -nop4 -NullRHI -log
 ```
 
-## Phase 7 status
+## Matchday experience
 
-The current Phase 7 implementation is a code-only technical foundation. It provides deterministic
-cue playback and broadcast controls using engine placeholder meshes. Production completion still requires:
+When the player simulates a round, the Match Center opens for their next game showing a pre-game
+comparison of both teams' lineups, records, tactics, injuries, and rivalry status. Two options:
 
-- a dedicated arena map and authored court layout;
-- licensed athlete, uniform, ball, arena, animation, audio, and crowd assets;
-- event-specific staging paths and animation montages;
-- packaged-build performance profiling and clean-machine verification;
-- visual QA of every highlight template and camera transition.
+- **Watch Highlights** launches a full-screen 2D tactical court viewer. A top-down basketball court
+  shows 10 color-coded player dots and an orange ball animating through each highlight cue.
+  Each highlight template (three-pointer, drive-and-finish, steal-fastbreak, clutch basket, etc.)
+  has a unique movement choreography with bezier ball trajectories. A broadcast-style scoreboard
+  tracks score, period, clock, and play descriptions in real time. Controls: pause, skip, 1x/2x/4x speed, exit.
 
-If the asset spike fails, the approved fallback is a 2D tactical match presentation.
+- **Instant Result** skips the replay and goes straight to the results screen.
+
+After the broadcast finishes (or on exit), the Post-Game Recap screen shows the highlight feed,
+quarter-by-quarter scores, key plays, and headline summary.

@@ -1656,4 +1656,41 @@ bool FTenSeasonCareerSoakTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHighlightChoreographyCoverageTest,
+    "Underdog.Simulation.HighlightChoreographyCoverage",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FHighlightChoreographyCoverageTest::RunTest(const FString& Parameters)
+{
+    FLeagueState League = FLeagueGenerator::Generate(2020050ULL);
+    FString Error;
+    FLeagueGenerator::ValidateLeague(League, Error);
+    FLeagueService::SetPlayerTeamId(League, League.Teams[0].TeamId);
+
+    TArray<FMatchResult> Results;
+    FLeagueService::AdvanceCurrentRound(League, Results, Error);
+    TestTrue(TEXT("Has results"), Results.Num() > 0);
+
+    const FMatchResult& Result = Results[0];
+    const FScheduledGame* Game = League.Schedule.FindByPredicate(
+        [&Result](const FScheduledGame& G) { return G.GameId == Result.GameId; });
+
+    FMatchSnapshot Snapshot;
+    FLeagueService::BuildSnapshot(League, *Game, Snapshot, Error);
+
+    TArray<FHighlightCue> Cues = FHighlightDirectorService::BuildHighlights(Result, Snapshot, 20);
+    TestTrue(TEXT("Generated multiple cues"), Cues.Num() > 0);
+
+    TSet<EHighlightTemplate> SeenTemplates;
+    for (const FHighlightCue& Cue : Cues)
+    {
+        SeenTemplates.Add(Cue.Template);
+        TestTrue(TEXT("Playback duration positive"), Cue.PlaybackDuration > 0.0f);
+        TestTrue(TEXT("Description not empty"), !Cue.Description.IsEmpty());
+    }
+    TestTrue(TEXT("Multiple template types covered"), SeenTemplates.Num() >= 2);
+
+    return true;
+}
+
 #endif
